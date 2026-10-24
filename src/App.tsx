@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useMemo, useState } from 'react';
+import React, { Suspense, lazy, useMemo, useState } from 'react';
 import { Navbar, type TabId } from './components/Navbar';
 import { HistoryView } from './components/HistoryView';
 import { addHistory } from './services/dataService';
@@ -13,6 +13,7 @@ import { BatchTrackerView } from './components/BatchTrackerView';
 import { OpenCageGuide } from './components/OpenCageGuide';
 import { OpenCageSkillsView } from './components/OpenCageSkillsView';
 import { PythonScriptModal } from './components/PythonScriptModal';
+const GodEyeView = lazy(() => import('./components/GodEyeView').then((m) => ({ default: m.GodEyeView })));
 import { parsePhoneNumber } from './services/phoneParser';
 import { generateFoliumHtml } from './services/pythonScriptGenerator';
 import { Terminal, Download, Globe, Shield, Code, ExternalLink } from 'lucide-react';
@@ -26,6 +27,16 @@ export default function App() {
   const phoneResult = useMemo(() => {
     return parsePhoneNumber(inputNumber);
   }, [inputNumber]);
+
+  // Stable target for the God Eye globe (only changes when the number does)
+  const godEyeTarget = useMemo(
+    () =>
+      phoneResult.isValid
+        ? { lat: phoneResult.coordinates.lat, lng: phoneResult.coordinates.lng, label: phoneResult.coordinates.displayName || phoneResult.e164 || '' }
+        : null,
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [phoneResult.e164, phoneResult.isValid],
+  );
 
   // Save valid lookups to the user's history once typing settles
   const lastSavedRef = React.useRef<string | null>(null);
@@ -102,6 +113,12 @@ export default function App() {
 
         {activeTab === 'batch' && (
           <BatchTrackerView onSelectNumber={handleSelectBatchNumber} />
+        )}
+
+        {activeTab === 'god_eye' && (
+          <Suspense fallback={<p className="text-xs text-slate-400 p-6">Loading globe...</p>}>
+            <GodEyeView target={godEyeTarget} />
+          </Suspense>
         )}
 
         {activeTab === 'history' && <HistoryView onSelectNumber={handleSelectBatchNumber} />}

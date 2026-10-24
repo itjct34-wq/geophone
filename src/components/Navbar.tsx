@@ -2,7 +2,7 @@ import React from 'react';
 import { Radio, Download, Terminal, Crosshair, LogOut } from 'lucide-react';
 import { useAuth } from '../auth/AuthContext';
 
-export type TabId = 'lookup' | 'live_gps' | 'batch' | 'history' | 'python' | 'guide';
+export type TabId = 'lookup' | 'live_gps' | 'batch' | 'god_eye' | 'history' | 'python' | 'guide';
 
 interface NavbarProps {
   activeTab: TabId;
@@ -66,6 +66,16 @@ export const Navbar: React.FC<NavbarProps> = ({
           Batch Analysis
         </button>
         <button
+          onClick={() => setActiveTab('god_eye')}
+          className={`transition-colors whitespace-nowrap shrink-0 pb-1 border-b-2 ${
+            activeTab === 'god_eye'
+              ? 'text-cyan-400 border-cyan-400 font-semibold'
+              : 'border-transparent hover:text-slate-200'
+          }`}
+        >
+          God Eye
+        </button>
+        <button
           onClick={() => setActiveTab('history')}
           className={`transition-colors whitespace-nowrap shrink-0 pb-1 border-b-2 ${
             activeTab === 'history'
@@ -99,6 +109,7 @@ export const Navbar: React.FC<NavbarProps> = ({
         ['lookup', 'Single Lookup'],
         ['live_gps', 'Live GPS & Towers'],
         ['batch', 'Batch Analysis'],
+        ['god_eye', 'God Eye'],
         ['history', 'History'],
       ] as const).map(([tab, label]) => (
         <button
