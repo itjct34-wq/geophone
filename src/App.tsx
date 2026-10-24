@@ -4,7 +4,9 @@
  */
 
 import React, { useMemo, useState } from 'react';
-import { Navbar } from './components/Navbar';
+import { Navbar, type TabId } from './components/Navbar';
+import { HistoryView } from './components/HistoryView';
+import { addHistory } from './services/dataService';
 import { PhoneLookupView } from './components/PhoneLookupView';
 import { LiveHandsetTrackerView } from './components/LiveHandsetTrackerView';
 import { BatchTrackerView } from './components/BatchTrackerView';
@@ -16,7 +18,7 @@ import { generateFoliumHtml } from './services/pythonScriptGenerator';
 import { Terminal, Download, Globe, Shield, Code, ExternalLink } from 'lucide-react';
 
 export default function App() {
-  const [activeTab, setActiveTab] = useState<'lookup' | 'live_gps' | 'batch' | 'python' | 'guide'>('lookup');
+  const [activeTab, setActiveTab] = useState<TabId>('lookup');
   const [inputNumber, setInputNumber] = useState('');
   const [isPythonModalOpen, setIsPythonModalOpen] = useState(false);
 
@@ -24,6 +26,18 @@ export default function App() {
   const phoneResult = useMemo(() => {
     return parsePhoneNumber(inputNumber);
   }, [inputNumber]);
+
+  // Save valid lookups to the user's history once typing settles
+  const lastSavedRef = React.useRef<string | null>(null);
+  React.useEffect(() => {
+    if (!phoneResult.isValid || !phoneResult.e164) return;
+    if (lastSavedRef.current === phoneResult.e164) return;
+    const timer = setTimeout(() => {
+      lastSavedRef.current = phoneResult.e164 ?? null;
+      addHistory(phoneResult).catch((err) => console.warn('[history] save failed:', err));
+    }, 1500);
+    return () => clearTimeout(timer);
+  }, [phoneResult]);
 
   // Handle URL query params for shareable live tracking links
   React.useEffect(() => {
@@ -89,6 +103,8 @@ export default function App() {
         {activeTab === 'batch' && (
           <BatchTrackerView onSelectNumber={handleSelectBatchNumber} />
         )}
+
+        {activeTab === 'history' && <HistoryView onSelectNumber={handleSelectBatchNumber} />}
 
         {activeTab === 'python' && (
           <div className="space-y-6">

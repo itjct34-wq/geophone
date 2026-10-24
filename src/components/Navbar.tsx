@@ -1,10 +1,12 @@
-﻿import React from 'react';
+import React from 'react';
 import { Radio, Download, Terminal, Crosshair, LogOut } from 'lucide-react';
 import { useAuth } from '../auth/AuthContext';
 
+export type TabId = 'lookup' | 'live_gps' | 'batch' | 'history' | 'python' | 'guide';
+
 interface NavbarProps {
-  activeTab: 'lookup' | 'live_gps' | 'batch' | 'python' | 'guide';
-  setActiveTab: (tab: 'lookup' | 'live_gps' | 'batch' | 'python' | 'guide') => void;
+  activeTab: TabId;
+  setActiveTab: (tab: TabId) => void;
   onOpenPythonModal: () => void;
   onExportHtml: () => void;
 }
@@ -17,7 +19,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   const { user, signOut } = useAuth();
   return (
     <div className="sticky top-0 z-50 bg-slate-950/80 backdrop-blur-md border-b border-slate-800">
-    <header className="flex items-center justify-between gap-4 md:gap-8 px-4 sm:px-6 py-3 md:py-4">
+    <header className="flex items-center justify-between gap-4 lg:gap-8 px-4 sm:px-6 py-3 lg:py-4">
       {/* Zone 1: Single text element wordmark */}
       <div 
         onClick={() => setActiveTab('lookup')}
@@ -32,7 +34,7 @@ export const Navbar: React.FC<NavbarProps> = ({
       </div>
 
       {/* Zone 2: 4â€“5 clean single-line text navigation links */}
-      <nav className="hidden md:flex items-center gap-6 text-sm font-medium text-slate-400">
+      <nav className="hidden lg:flex items-center gap-6 text-sm font-medium text-slate-400">
         <button
           onClick={() => setActiveTab('lookup')}
           className={`transition-colors whitespace-nowrap shrink-0 pb-1 border-b-2 ${
@@ -62,6 +64,16 @@ export const Navbar: React.FC<NavbarProps> = ({
           }`}
         >
           Batch Analysis
+        </button>
+        <button
+          onClick={() => setActiveTab('history')}
+          className={`transition-colors whitespace-nowrap shrink-0 pb-1 border-b-2 ${
+            activeTab === 'history'
+              ? 'text-cyan-400 border-cyan-400 font-semibold'
+              : 'border-transparent hover:text-slate-200'
+          }`}
+        >
+          History
         </button>
         <button
           onClick={() => setActiveTab('python')}
@@ -109,12 +121,13 @@ export const Navbar: React.FC<NavbarProps> = ({
     {/* Mobile navigation (the desktop links above are hidden below md) */}
     <nav
       aria-label="Sections"
-      className="md:hidden flex items-center gap-5 px-4 sm:px-6 overflow-x-auto text-sm font-medium text-slate-400 border-t border-slate-800/60"
+      className="lg:hidden flex items-center gap-5 px-4 sm:px-6 overflow-x-auto text-sm font-medium text-slate-400 border-t border-slate-800/60"
     >
       {([
         ['lookup', 'Single Lookup'],
         ['live_gps', 'Live GPS & Towers'],
         ['batch', 'Batch Analysis'],
+        ['history', 'History'],
         ['python', 'Python Stack'],
         ['guide', 'Docs'],
       ] as const).map(([tab, label]) => (
