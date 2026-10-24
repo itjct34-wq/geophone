@@ -75,38 +75,10 @@ export const Navbar: React.FC<NavbarProps> = ({
         >
           History
         </button>
-        <button
-          onClick={() => setActiveTab('python')}
-          className={`transition-colors whitespace-nowrap shrink-0 pb-1 border-b-2 ${
-            activeTab === 'python'
-              ? 'text-cyan-400 border-cyan-400 font-semibold'
-              : 'border-transparent hover:text-slate-200'
-          }`}
-        >
-          Python Code & Pip Stack
-        </button>
-        <button
-          onClick={() => setActiveTab('guide')}
-          className={`transition-colors whitespace-nowrap shrink-0 pb-1 border-b-2 ${
-            activeTab === 'guide'
-              ? 'text-cyan-400 border-cyan-400 font-semibold'
-              : 'border-transparent hover:text-slate-200'
-          }`}
-        >
-          OpenCage & Folium Docs
-        </button>
       </nav>
 
       {/* Zone 3: 1 primary action */}
       <div className="flex items-center gap-3 shrink-0">
-        <button
-          onClick={onOpenPythonModal}
-          className="flex items-center gap-2 px-3.5 py-2 text-xs font-semibold text-slate-950 bg-cyan-400 hover:bg-cyan-300 rounded-lg transition-colors whitespace-nowrap shrink-0 shadow-sm"
-        >
-          <Terminal className="w-3.5 h-3.5" />
-          <span className="hidden sm:inline">Get Python Script</span>
-          <span className="sm:hidden">Script</span>
-        </button>
         <button
           onClick={signOut}
           title={`Signed in as ${user?.email}`}
@@ -128,8 +100,6 @@ export const Navbar: React.FC<NavbarProps> = ({
         ['live_gps', 'Live GPS & Towers'],
         ['batch', 'Batch Analysis'],
         ['history', 'History'],
-        ['python', 'Python Stack'],
-        ['guide', 'Docs'],
       ] as const).map(([tab, label]) => (
         <button
           key={tab}

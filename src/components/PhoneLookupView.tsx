@@ -109,11 +109,6 @@ export const PhoneLookupView: React.FC<PhoneLookupViewProps> = ({
   const [liveGpsError, setLiveGpsError] = useState<string | null>(null);
 
   // Automated Execution Pipeline State
-  const [isAutoExecuting, setIsAutoExecuting] = useState<boolean>(false);
-  const [currentStepIndex, setCurrentStepIndex] = useState<number>(0);
-  const [autoRunOnChange, setAutoRunOnChange] = useState<boolean>(true);
-  const [autoPlayTour, setAutoPlayTour] = useState<boolean>(false);
-  const tourIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
   // Handler to fetch real physical GPS of current handset
   const handleGetRealGps = () => {
@@ -223,67 +218,9 @@ export const PhoneLookupView: React.FC<PhoneLookupViewProps> = ({
     };
   }, [result, openCageData, cityOverride, liveGpsFix, isPlusCodeActive, activePlusCodeFix]);
 
-  // Construct current pipeline execution steps
-  const steps: PipelineStep[] = [
-    {
-      id: 1,
-      label: 'phonenumbers.parse()',
-      codeSnippet: `new_number = phonenumbers.parse("${inputNumber}")`,
-      output: result.isValid
-        ? `Valid: ${result.e164 || inputNumber} (Calling Code: ${result.countryCallingCode})`
-        : 'Parsing telecommunications sequence...',
-      status: currentStepIndex > 1 ? 'completed' : currentStepIndex === 1 ? 'running' : 'pending',
-    },
-    {
-      id: 2,
-      label: 'geocoder.description_for_number()',
-      codeSnippet: `location = geocoder.description_for_number(new_number, "en")`,
-      output: `location -> "${cityOverride || result.regionOrCity}"`,
-      status: currentStepIndex > 2 ? 'completed' : currentStepIndex === 2 ? 'running' : 'pending',
-    },
-    {
-      id: 3,
-      label: 'carrier.name_for_number()',
-      codeSnippet: `service_name = carrier.name_for_number(new_number, "en")`,
-      output: `carrier -> "${result.carrier}"`,
-      status: currentStepIndex > 3 ? 'completed' : currentStepIndex === 3 ? 'running' : 'pending',
-    },
-    {
-      id: 4,
-      label: 'OpenCageGeocode.geocode()',
-      codeSnippet: `result = geocoder.geocode("${cityOverride || result.regionOrCity}")`,
-      output: `lat: ${activeCoordinatesResult.coordinates.lat.toFixed(4)}, lng: ${activeCoordinatesResult.coordinates.lng.toFixed(4)}`,
-      status: currentStepIndex > 4 ? 'completed' : currentStepIndex === 4 ? 'running' : 'pending',
-    },
-    {
-      id: 5,
-      label: 'folium.Map() & folium.Marker()',
-      codeSnippet: `my_map.save("location.html")`,
-      output: 'location tracking completed. Thank you.',
-      status: currentStepIndex >= 5 ? 'completed' : currentStepIndex === 5 ? 'running' : 'pending',
-    },
-  ];
-
-  // Function to run the full automated execution sequence
-  const runPipelineAutomatically = () => {
-    setIsAutoExecuting(true);
-    setCurrentStepIndex(1);
-
-    setTimeout(() => setCurrentStepIndex(2), 250);
-    setTimeout(() => setCurrentStepIndex(3), 500);
-    setTimeout(() => setCurrentStepIndex(4), 800);
-    setTimeout(() => {
-      setCurrentStepIndex(5);
-      setIsAutoExecuting(false);
-    }, 1200);
-  };
-
-  // Trigger auto-run when input number changes if autoRunOnChange is enabled
+  // Reset any city override when the number changes
   useEffect(() => {
     setCityOverride(null);
-    if (autoRunOnChange) {
-      runPipelineAutomatically();
-    }
   }, [inputNumber]);
 
   const handleCopy = (text: string, fieldName: string) => {
@@ -312,17 +249,6 @@ export const PhoneLookupView: React.FC<PhoneLookupViewProps> = ({
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
-            {/* Auto-Run Execution Button */}
-            <button
-              onClick={runPipelineAutomatically}
-              disabled={isAutoExecuting}
-              title="Execute full Python pipeline automatically"
-              className="px-3.5 py-2.5 bg-cyan-500 hover:bg-cyan-400 text-slate-950 text-xs font-bold rounded-lg transition-colors flex items-center gap-1.5 whitespace-nowrap shrink-0 shadow-sm"
-            >
-              <Play className={`w-3.5 h-3.5 fill-current ${isAutoExecuting ? 'animate-pulse' : ''}`} />
-              <span>{isAutoExecuting ? 'Executing...' : 'Auto-Run'}</span>
-            </button>
-
             {/* WhatsApp / SMS Live Share Link */}
             <button
               onClick={() => setIsShareModalOpen(true)}
@@ -333,16 +259,6 @@ export const PhoneLookupView: React.FC<PhoneLookupViewProps> = ({
               <span>WhatsApp / SMS Link</span>
             </button>
 
-            {/* Why OpenCage returns same lat/lng explanation */}
-            <button
-              onClick={() => setIsWhyModalOpen(true)}
-              title="Why does OpenCage return identical latitude & longitude (30.3753, 69.3451)?"
-              className="px-3 py-2.5 bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 text-xs font-semibold rounded-lg transition-colors flex items-center gap-1.5 whitespace-nowrap shrink-0"
-            >
-              <HelpCircle className="w-3.5 h-3.5 text-amber-400" />
-              <span>Why Same Lat/Lng?</span>
-            </button>
-
             <button
               onClick={() => handleCopy(result.e164 || inputNumber, 'e164_quick')}
               className="px-3 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-medium rounded-lg transition-colors flex items-center gap-1.5 whitespace-nowrap shrink-0"
@@ -351,13 +267,6 @@ export const PhoneLookupView: React.FC<PhoneLookupViewProps> = ({
               <span>{copiedField === 'e164_quick' ? 'Copied' : 'Copy'}</span>
             </button>
 
-            <button
-              onClick={onOpenPythonModal}
-              className="px-3 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-medium rounded-lg transition-colors flex items-center gap-1.5 whitespace-nowrap shrink-0"
-            >
-              <Terminal className="w-3.5 h-3.5 text-cyan-400" />
-              <span>Script</span>
-            </button>
           </div>
         </div>
 
@@ -382,12 +291,12 @@ export const PhoneLookupView: React.FC<PhoneLookupViewProps> = ({
               <div className="flex items-center gap-2 flex-wrap">
                 <h3 className="text-sm font-bold text-slate-100">
                   {liveGpsFix
-                    ? 'Real Handset GPS Sensor Active (Exact Physical Fix)'
+                    ? 'Device GPS active'
                     : (isPlusCodeActive && activePlusCodeFix)
-                    ? `Verified Plus Code Location: ${activePlusCodeFix.shortCode} Peshawar`
+                    ? `Plus Code location: ${activePlusCodeFix.shortCode}`
                     : result.subAllocation
-                    ? `PTA Regional Exchange: ${result.regionOrCity}`
-                    : 'Why does the Python script show a "Fake" location in the mountains?'}
+                    ? `Regional exchange: ${result.regionOrCity}`
+                    : 'Approximate location from the number prefix'}
                 </h3>
                 <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider ${
                   liveGpsFix
@@ -398,21 +307,21 @@ export const PhoneLookupView: React.FC<PhoneLookupViewProps> = ({
                     ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/30'
                     : 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
                 }`}>
-                  {liveGpsFix ? `±${liveGpsFix.accuracy}m GPS Accuracy` : (isPlusCodeActive && activePlusCodeFix) ? '±14m Plus Code Exact Fix' : result.subAllocation ? 'PTA Regional Resolution' : 'Centroid vs Real GPS'}
+                  {liveGpsFix ? `±${liveGpsFix.accuracy}m GPS Accuracy` : (isPlusCodeActive && activePlusCodeFix) ? '±14m Plus Code Exact Fix' : result.subAllocation ? 'Regional exchange' : 'Approximate'}
                 </span>
               </div>
               <p className="text-xs text-slate-300 leading-relaxed max-w-3xl">
                 {liveGpsFix ? (
                   <span>
-                    Your device's hardware GPS sensor has provided your true coordinates at <strong className="text-emerald-400 font-mono">{liveGpsFix.lat.toFixed(5)}, {liveGpsFix.lng.toFixed(5)}</strong>. OpenCage has reverse-geocoded your exact street and district below.
+                    Your device's GPS reports <strong className="text-emerald-400 font-mono">{liveGpsFix.lat.toFixed(5)}, {liveGpsFix.lng.toFixed(5)}</strong>.
                   </span>
                 ) : (isPlusCodeActive && activePlusCodeFix) ? (
                   <span>
-                    Your handset location is confirmed via Google Plus Code: <strong className="text-purple-300 font-mono">{activePlusCodeFix.shortCode}</strong> (Full global code: <code className="text-cyan-300 font-mono">{activePlusCodeFix.fullCode}</code>). The pin is dropped directly at <strong className="text-emerald-300 font-mono">{activePlusCodeFix.lat.toFixed(5)}, {activePlusCodeFix.lng.toFixed(5)}</strong> ({activePlusCodeFix.locality}) with building/street precision!
+                    Location from Plus Code: <strong className="text-purple-300 font-mono">{activePlusCodeFix.shortCode}</strong> (Full global code: <code className="text-cyan-300 font-mono">{activePlusCodeFix.fullCode}</code>). The pin is dropped directly at <strong className="text-emerald-300 font-mono">{activePlusCodeFix.lat.toFixed(5)}, {activePlusCodeFix.lng.toFixed(5)}</strong> ({activePlusCodeFix.locality}) with building/street precision.
                   </span>
                 ) : result.subAllocation ? (
                   <span>
-                    The basic Python script outputs <code className="text-amber-300 font-mono">"Pakistan"</code> (which OpenCage places at the 30.3753, 69.3451 polygon centroid). Our upgraded intelligence engine resolved <strong className="text-cyan-300 font-mono">{result.e164 || inputNumber}</strong> to <strong className="text-emerald-300">{result.subAllocation}</strong> ({result.coordinates.lat.toFixed(4)}, {result.coordinates.lng.toFixed(4)}) with <strong className="text-slate-100">{result.carrier}</strong>!
+                    <strong className="text-cyan-300 font-mono">{result.e164 || inputNumber}</strong> resolves to <strong className="text-emerald-300">{result.subAllocation}</strong> ({result.coordinates.lat.toFixed(4)}, {result.coordinates.lng.toFixed(4)}) on <strong className="text-slate-100">{result.carrier}</strong>. This is the area the number was issued in, not the handset's current position.
                   </span>
                 ) : !inputNumber.trim() ? (
                   <span>
@@ -420,7 +329,7 @@ export const PhoneLookupView: React.FC<PhoneLookupViewProps> = ({
                   </span>
                 ) : (
                   <span>
-                    The Python script (<code className="text-cyan-300 font-mono">phonenumbers</code> + <code className="text-cyan-300 font-mono">opencage</code>) only parses the SIM prefix (<strong className="text-slate-100 font-mono">{result.international ? result.international.split(' ').slice(0, 2).join(' ') : inputNumber}</strong>). Because mobile SIMs move freely nationwide, the script outputs the text <strong className="text-cyan-300">"Pakistan"</strong>, and OpenCage geocodes it to the <strong className="text-amber-300">geometric center of Pakistan (30.3753, 69.3451)</strong>.
+                    Mobile numbers aren't tied to a place, so the map shows the centre of the country. Pick a city below, or use Track Real GPS for this device's true position.
                   </span>
                 )}
               </p>
@@ -470,21 +379,6 @@ export const PhoneLookupView: React.FC<PhoneLookupViewProps> = ({
                   <span>{isLocatingDevice ? 'Acquiring GPS...' : 'Track Real GPS'}</span>
                 </button>
 
-                <button
-                  onClick={() => setIsShareModalOpen(true)}
-                  className="px-3 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold rounded-lg transition-colors border border-slate-700 flex items-center gap-1.5 whitespace-nowrap shadow-sm"
-                >
-                  <Share2 className="w-3.5 h-3.5 text-cyan-400" />
-                  <span>Share Link</span>
-                </button>
-
-                <button
-                  onClick={() => setIsWhyModalOpen(true)}
-                  className="px-2.5 py-2.5 bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border border-amber-500/30 rounded-lg text-xs font-semibold transition-colors flex items-center gap-1"
-                >
-                  <HelpCircle className="w-3.5 h-3.5" />
-                  <span>Why Same Coords?</span>
-                </button>
               </>
             )}
           </div>
@@ -497,9 +391,6 @@ export const PhoneLookupView: React.FC<PhoneLookupViewProps> = ({
               <MapPin className="w-4 h-4 text-purple-400" />
               <span className="text-xs font-bold text-slate-100">
                 Google Plus Code (Open Location Code) Location Manager:
-              </span>
-              <span className="px-1.5 py-0.5 rounded text-[10px] bg-purple-950 text-purple-300 border border-purple-800 font-semibold">
-                Street / House Precision
               </span>
             </div>
             <div className="text-[11px] text-slate-400 font-mono">
@@ -588,41 +479,6 @@ export const PhoneLookupView: React.FC<PhoneLookupViewProps> = ({
           </div>
         )}
 
-        {/* 3 Solutions to Get the Real Location */}
-        {!liveGpsFix && (
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-3 pt-2 text-xs">
-            <div className="bg-slate-950 p-3 rounded-lg border border-slate-800 space-y-1">
-              <div className="flex items-center gap-2 text-slate-200 font-semibold">
-                <Smartphone className="w-3.5 h-3.5 text-emerald-400" />
-                <span>Solution 1: Live Handset GPS</span>
-              </div>
-              <p className="text-slate-400 text-[11px] leading-relaxed">
-                Click <strong className="text-emerald-400">"Track My Real Device GPS Now"</strong> above. It queries the phone's internal GPS chip for true street coordinates (±10m).
-              </p>
-            </div>
-
-            <div className="bg-slate-950 p-3 rounded-lg border border-slate-800 space-y-1">
-              <div className="flex items-center gap-2 text-slate-200 font-semibold">
-                <Radio className="w-3.5 h-3.5 text-cyan-400" />
-                <span>Solution 2: Cellular BTS Towers</span>
-              </div>
-              <p className="text-slate-400 text-[11px] leading-relaxed">
-                Use the <strong className="text-cyan-400">Live GPS & Towers</strong> tab to view your 96 real cell dump records (MCC 410, Zong/CMPak, Warid, Telenor) and 3-tower triangulation.
-              </p>
-            </div>
-
-            <div className="bg-slate-950 p-3 rounded-lg border border-slate-800 space-y-1">
-              <div className="flex items-center gap-2 text-slate-200 font-semibold">
-                <MapPin className="w-3.5 h-3.5 text-amber-400" />
-                <span>Solution 3: Select Known City</span>
-              </div>
-              <p className="text-slate-400 text-[11px] leading-relaxed">
-                Select your target city below (Islamabad, Rawalpindi, Lahore, etc.) to immediately move the pin from the mountains to that real metro area.
-              </p>
-            </div>
-          </div>
-        )}
-
         {/* City Simulation Tags */}
         <div className="pt-2 border-t border-slate-800/80 flex flex-wrap items-center gap-2 text-xs">
           <span className="text-slate-400 font-medium">Pin Known City / Sector:</span>
@@ -647,7 +503,7 @@ export const PhoneLookupView: React.FC<PhoneLookupViewProps> = ({
               onClick={() => setCityOverride(null)}
               className="px-2 py-0.5 text-[11px] text-amber-400 hover:text-amber-300 underline ml-1"
             >
-              Reset to Country Centroid
+              Reset
             </button>
           )}
         </div>
@@ -664,73 +520,7 @@ export const PhoneLookupView: React.FC<PhoneLookupViewProps> = ({
           </p>
         </div>
       ) : (
-        <>      {/* Live Automated Execution Pipeline Banner */}
-      <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 shadow-md">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 mb-3 border-b border-slate-800">
-          <div className="flex items-center gap-2">
-            <span className="w-2 h-2 rounded-full bg-cyan-400 animate-ping" />
-            <span className="text-xs font-bold text-slate-200 uppercase tracking-wider">
-              Automatic Python Script Execution Pipeline
-            </span>
-          </div>
-
-          <div className="flex items-center gap-4 text-xs text-slate-400">
-            <label className="flex items-center gap-2 cursor-pointer select-none">
-              <input
-                type="checkbox"
-                checked={autoRunOnChange}
-                onChange={(e) => setAutoRunOnChange(e.target.checked)}
-                className="w-3.5 h-3.5 rounded bg-slate-950 border-slate-700 text-cyan-500 focus:ring-0"
-              />
-              <span>Auto-execute on number change</span>
-            </label>
-            <span className="text-emerald-400 font-mono font-medium">
-              {currentStepIndex >= 5 ? '✓ Execution Finished' : 'Processing...'}
-            </span>
-          </div>
-        </div>
-
-        {/* 5 Step Visualizer */}
-        <div className="grid grid-cols-1 md:grid-cols-5 gap-2.5">
-          {steps.map((step) => {
-            const isDone = step.status === 'completed';
-            const isActive = step.status === 'running';
-
-            return (
-              <div
-                key={step.id}
-                className={`p-2.5 rounded-lg border text-xs transition-all ${
-                  isDone
-                    ? 'bg-slate-950/80 border-cyan-900/40 text-slate-200'
-                    : isActive
-                    ? 'bg-cyan-950/30 border-cyan-500/60 text-cyan-300 ring-1 ring-cyan-500/30'
-                    : 'bg-slate-950/40 border-slate-800 text-slate-500'
-                }`}
-              >
-                <div className="flex items-center justify-between mb-1">
-                  <span className="font-mono text-[10px] text-slate-400">Step {step.id}</span>
-                  {isDone ? (
-                    <span className="text-emerald-400 text-[11px] font-bold">✓</span>
-                  ) : isActive ? (
-                    <RefreshCw className="w-3 h-3 text-cyan-400 animate-spin" />
-                  ) : (
-                    <span className="text-slate-600 text-[10px]">queued</span>
-                  )}
-                </div>
-
-                <div className="font-mono text-[11px] font-semibold truncate text-slate-300">
-                  {step.label}
-                </div>
-
-                <div className="text-[11px] text-slate-400 truncate mt-1">
-                  {step.output}
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      </div>
-
+        <>
       {/* Main 2-Column Intelligence Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-stretch">
         
@@ -748,9 +538,6 @@ export const PhoneLookupView: React.FC<PhoneLookupViewProps> = ({
                   <h3 className="text-sm font-bold text-slate-100">
                     Carrier & Network Intelligence
                   </h3>
-                  <div className="text-[11px] text-slate-400">
-                    phonenumbers.carrier & ITU allocation
-                  </div>
                 </div>
               </div>
 
@@ -816,11 +603,8 @@ export const PhoneLookupView: React.FC<PhoneLookupViewProps> = ({
                 </div>
                 <div>
                   <h3 className="text-sm font-bold text-slate-100">
-                    OpenCage Geocode Engine
+                    Geocoded Location
                   </h3>
-                  <div className="text-[11px] text-slate-400">
-                    Live OpenCage Geocoding API integration
-                  </div>
                 </div>
               </div>
 
@@ -856,30 +640,6 @@ export const PhoneLookupView: React.FC<PhoneLookupViewProps> = ({
                     {activeCoordinatesResult.coordinates.lng.toFixed(6)}
                   </span>
                 </div>
-              </div>
-
-              {/* API Security & Re-query */}
-              <div className="pt-2 border-t border-slate-800/80 flex items-center justify-between text-[11px]">
-                <div className="flex items-center gap-1.5 text-slate-400">
-                  <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
-                  <span>API Key: Hidden & Protected</span>
-                </div>
-                <button
-                  onClick={() => {
-                    setOpenCageData(null);
-                    setIsGeocoding(true);
-                    const q = cityOverride ? `${cityOverride}, Pakistan` : (result.regionOrCity || result.countryName);
-                    geocodeWithOpenCage(q, openCageKey).then((r) => {
-                      setOpenCageData(r);
-                      setIsGeocoding(false);
-                    });
-                  }}
-                  title="Refresh OpenCage Coordinates"
-                  className="flex items-center gap-1 px-2.5 py-1 bg-slate-950 hover:bg-slate-800 border border-slate-800 text-slate-300 rounded text-[11px] transition-colors"
-                >
-                  <RefreshCw className={`w-3 h-3 ${isGeocoding ? 'animate-spin text-cyan-400' : ''}`} />
-                  <span>Re-query</span>
-                </button>
               </div>
             </div>
           </div>

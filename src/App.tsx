@@ -148,14 +148,9 @@ export default function App() {
           <div className="flex items-center gap-2">
             <span className="font-semibold text-slate-400">GeoPhone Intelligence</span>
             <span aria-hidden="true">·</span>
-            <span>E.164 Global Telecom Directory</span>
-            <span aria-hidden="true">·</span>
-            <span>OpenStreetMap & Folium GIS</span>
+            <span>Maps © OpenStreetMap contributors</span>
           </div>
 
-          <div className="flex items-center gap-3 font-mono text-[11px] text-slate-400">
-            <span>pip install phonenumbers folium geocoder opencage</span>
-          </div>
         </div>
       </footer>
     </div>
