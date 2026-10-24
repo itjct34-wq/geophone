@@ -1,0 +1,6 @@
+{
+  "name": "GeoPhone - Phone Intelligence & Map Visualizer",
+  "description": "Parse phone numbers, extract telecom carrier & regional geolocation, view interactive Folium / OpenStreetMap coordinates, and generate executable Python scripts.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

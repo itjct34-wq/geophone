@@ -1,0 +1,33 @@
+@import "tailwindcss";
+
+@layer base {
+  body {
+    font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+  }
+}
+
+/* Custom leaflet map dark mode filter & marker styling */
+.leaflet-container {
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+  background-color: #020617 !important;
+}
+
+.dark-tiles .leaflet-tile {
+  filter: brightness(0.75) invert(1) contrast(3) hue-rotate(200deg) saturate(0.3) brightness(0.7);
+}
+
+.satellite-tiles .leaflet-tile {
+  filter: contrast(1.1) brightness(0.9);
+}
+
+.leaflet-popup-content-wrapper {
+  background-color: #0f172a !important;
+  color: #f8fafc !important;
+  border-radius: 8px !important;
+  border: 1px solid #334155 !important;
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5) !important;
+}
+
+.leaflet-popup-tip {
+  background-color: #0f172a !important;
+}
