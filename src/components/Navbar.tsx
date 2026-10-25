@@ -11,6 +11,7 @@ export type TabId =
   | 'god_eye'
   | 'history'
   | 'investigations'
+  | 'public_osint'
   | 'plan'
   | 'admin'
   | 'python'
@@ -62,6 +63,7 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab }) => {
     { id: 'god_eye', label: 'God Eye', paid: true },
     { id: 'history', label: 'History' },
     { id: 'investigations', label: 'Investigations' },
+    { id: 'public_osint', label: 'Username / Email / Image' },
     isAdmin ? { id: 'admin', label: 'Customers' } : { id: 'plan', label: 'Plan' },
   ];
 
