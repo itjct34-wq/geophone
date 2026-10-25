@@ -1,0 +1,2 @@
+[functions.run-monitoring]
+verify_jwt = false

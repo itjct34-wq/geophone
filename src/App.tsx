@@ -14,6 +14,7 @@ import { BatchTrackerView } from './components/BatchTrackerView';
 import { PlanView } from './components/PlanView';
 import { AdminView } from './components/AdminView';
 import { LockedFeature } from './components/LockedFeature';
+import { InvestigationCenter } from './components/InvestigationCenter';
 import { useAuth } from './auth/AuthContext';
 const GodEyeView = lazy(() => import('./components/GodEyeView').then((m) => ({ default: m.GodEyeView })));
 import { parsePhoneNumber } from './services/phoneParser';
@@ -146,6 +147,8 @@ export default function App() {
           ))}
 
         {activeTab === 'history' && <HistoryView onSelectNumber={handleSelectBatchNumber} />}
+
+        {activeTab === 'investigations' && <InvestigationCenter />}
 
         {activeTab === 'plan' && !isAdmin && <PlanView />}
 
