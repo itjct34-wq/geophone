@@ -239,9 +239,16 @@ export const LiveHandsetTrackerView: React.FC<LiveHandsetTrackerViewProps> = ({ 
     [userCells, triangulationIds],
   );
 
-  // Prefer towers with a real position; fall back to all selected cells (indicative only)
-  const realTriangulationCells = triangulationCells.filter((c) => !c.isApproximate);
-  const triangulationBasis = realTriangulationCells.length >= 3 ? realTriangulationCells : triangulationCells;
+  // Automatic: every tower with a real, accurately known position (within 2 km).
+  // If the user ticks cells, those are used instead.
+  const isAutoTriangulation = triangulationIds.length === 0;
+  const triangulationBasis = React.useMemo(() => {
+    if (!isAutoTriangulation) {
+      const real = triangulationCells.filter((c) => !c.isApproximate);
+      return real.length >= 3 ? real : triangulationCells;
+    }
+    return userCells.filter((c) => !c.isApproximate && (c.rangeM ?? 0) <= 2000);
+  }, [isAutoTriangulation, triangulationCells, userCells]);
 
   const triangulationEstimate: PositionEstimate | null = React.useMemo(() => {
     if (triangulationBasis.length < 3) return null;
@@ -249,7 +256,7 @@ export const LiveHandsetTrackerView: React.FC<LiveHandsetTrackerViewProps> = ({ 
       triangulationBasis.map((c) => ({
         lat: c.lat,
         lng: c.lng,
-        rangeM: c.rangeM ?? defaultRangeMeters(c.technology),
+        rangeM: defaultRangeMeters(c.technology),
       })),
     );
   }, [triangulationBasis]);
@@ -565,7 +572,7 @@ print("[✓] Generated cells_survey_map.html with your cellular dump!")
       const colors = ['#06b6d4', '#10b981', '#f59e0b', '#ef4444', '#a855f7', '#38bdf8'];
       const pts: [number, number][] = [];
 
-      triangulationCells.forEach((c, idx) => {
+      triangulationBasis.forEach((c, idx) => {
         const color = colors[idx % colors.length];
         const range = defaultRangeMeters(c.technology);
         L.circle([c.lat, c.lng], {
@@ -634,7 +641,7 @@ print("[✓] Generated cells_survey_map.html with your cellular dump!")
       }
     }
     setTimeout(() => map.invalidateSize(), 150);
-  }, [activeTab, filteredUserCells, selectedUserCell, selectedTower, deviceGps, gpsTrail, triangulationCells, triangulationEstimate, mapLayer]);
+  }, [activeTab, filteredUserCells, selectedUserCell, selectedTower, deviceGps, gpsTrail, triangulationBasis, triangulationEstimate, mapLayer]);
 
   return (
     <div className="space-y-6">
@@ -968,6 +975,11 @@ print("[✓] Generated cells_survey_map.html with your cellular dump!")
 
             {triangulationEstimate ? (
               <div className="p-3 bg-purple-950/30 border border-purple-800/40 rounded-lg text-purple-200 font-mono text-xs">
+                <span className="block mb-1 font-sans text-[11px] text-purple-300">
+                  {isAutoTriangulation
+                    ? `Automatic: using ${triangulationBasis.length} towers with real positions`
+                    : `Using your ${triangulationBasis.length} selected towers`}
+                </span>
                 Estimated position: {triangulationEstimate.lat.toFixed(5)}, {triangulationEstimate.lng.toFixed(5)} · ±{triangulationEstimate.radiusM} m
                 {triangulationBasis.some((c) => c.isApproximate) && (
                   <span className="block mt-1 font-sans text-[11px] text-amber-300">
@@ -976,7 +988,11 @@ print("[✓] Generated cells_survey_map.html with your cellular dump!")
                 )}
               </div>
             ) : (
-              <p className="text-[11px] text-slate-500">Select at least 3 cells to compute an estimate.</p>
+              <p className="text-[11px] text-slate-500">
+                {isAutoTriangulation
+                  ? `Waiting for 3 towers with real positions (${triangulationBasis.length} so far). The estimate appears here automatically.`
+                  : 'Select at least 3 cells to compute an estimate.'}
+              </p>
             )}
           </div>
         )}
