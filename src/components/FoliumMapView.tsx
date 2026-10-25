@@ -256,8 +256,13 @@ export const FoliumMapView: React.FC<FoliumMapViewProps> = ({
       popupAnchor: [0, -32],
     });
 
-    // Update or add Marker
-    if (markerRef.current) {
+    // A country-level result has no real position, so it is drawn as an area, not a pin
+    const countryOnly = result.coordinates.isApproximate && result.coordinates.accuracyKm >= 100;
+
+    if (countryOnly) {
+      markerRef.current?.remove();
+      markerRef.current = null;
+    } else if (markerRef.current) {
       markerRef.current.setLatLng([result.coordinates.lat, result.coordinates.lng]);
     } else {
       markerRef.current = L.marker([result.coordinates.lat, result.coordinates.lng], { icon: customIcon }).addTo(map);
@@ -280,7 +285,7 @@ export const FoliumMapView: React.FC<FoliumMapViewProps> = ({
       </div>
     `;
 
-    markerRef.current.bindPopup(popupContent);
+    markerRef.current?.bindPopup(popupContent);
 
     // Update or add circle
     const radiusMeters = (result.coordinates.accuracyKm || 25) * 1000;
@@ -294,11 +299,18 @@ export const FoliumMapView: React.FC<FoliumMapViewProps> = ({
         fillColor: '#0891b2',
         fillOpacity: 0.15,
         weight: 1.5,
+        dashArray: countryOnly ? '6, 6' : undefined,
       }).addTo(map);
     }
+    circleRef.current.setStyle({ dashArray: countryOnly ? '6, 6' : undefined, fillOpacity: countryOnly ? 0.08 : 0.15 });
+    circleRef.current.bindPopup(popupContent);
 
-    const targetZoom = result.coordinates.accuracyKm < 0.1 ? 16 : result.coordinates.accuracyKm < 5 ? 13 : result.coordinates.accuracyKm < 50 ? 11 : 8;
-    map.setView([result.coordinates.lat, result.coordinates.lng], targetZoom, { animate: true });
+    if (countryOnly) {
+      map.fitBounds(circleRef.current.getBounds(), { animate: true });
+    } else {
+      const targetZoom = result.coordinates.accuracyKm < 0.1 ? 16 : result.coordinates.accuracyKm < 5 ? 13 : result.coordinates.accuracyKm < 50 ? 11 : 8;
+      map.setView([result.coordinates.lat, result.coordinates.lng], targetZoom, { animate: true });
+    }
 
     setTimeout(() => {
       map.invalidateSize();
@@ -308,6 +320,10 @@ export const FoliumMapView: React.FC<FoliumMapViewProps> = ({
 
   const handleRecenter = () => {
     if (mapInstanceRef.current) {
+      if (circleRef.current && result.coordinates.isApproximate && result.coordinates.accuracyKm >= 100) {
+        mapInstanceRef.current.fitBounds(circleRef.current.getBounds(), { animate: true });
+        return;
+      }
       const targetZoom = result.coordinates.accuracyKm < 0.1 ? 16 : result.coordinates.accuracyKm < 5 ? 13 : result.coordinates.accuracyKm < 50 ? 11 : 8;
       mapInstanceRef.current.setView([result.coordinates.lat, result.coordinates.lng], targetZoom, { animate: true });
     }
@@ -466,14 +482,18 @@ export const FoliumMapView: React.FC<FoliumMapViewProps> = ({
             <span aria-hidden="true">·</span>
             <span>Zoom {zoomLevel}x</span>
           </div>
-          <div className="flex items-center gap-2 font-mono tabular-nums text-slate-300">
-            <span>{result.coordinates.lat.toFixed(4)}°</span>
-            <span className="text-slate-600">/</span>
-            <span>{result.coordinates.lng.toFixed(4)}°</span>
-            <span className="text-slate-500 text-[11px] ml-1">
-              ({toDms(result.coordinates.lat, true)}, {toDms(result.coordinates.lng, false)})
-            </span>
-          </div>
+          {result.coordinates.isApproximate && result.coordinates.accuracyKm >= 100 ? (
+            <div className="text-slate-300">Country level only: no exact position</div>
+          ) : (
+            <div className="flex items-center gap-2 font-mono tabular-nums text-slate-300">
+              <span>{result.coordinates.lat.toFixed(4)}°</span>
+              <span className="text-slate-600">/</span>
+              <span>{result.coordinates.lng.toFixed(4)}°</span>
+              <span className="text-slate-500 text-[11px] ml-1">
+                ({toDms(result.coordinates.lat, true)}, {toDms(result.coordinates.lng, false)})
+              </span>
+            </div>
+          )}
           <div className="text-[11px] text-slate-400 truncate">
             {inspectedPlace ? inspectedPlace.name : result.coordinates.displayName}
           </div>

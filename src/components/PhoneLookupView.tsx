@@ -174,6 +174,14 @@ export const PhoneLookupView: React.FC<PhoneLookupViewProps> = ({
     };
   }, [result.regionOrCity, result.countryName, openCageKey, result.coordinates.lat, result.coordinates.lng, cityOverride]);
 
+  // True when the result is only the whole country (a mobile number with no city)
+  const countryOnly =
+    !liveGpsFix &&
+    !(isPlusCodeActive && activePlusCodeFix) &&
+    !cityOverride &&
+    result.coordinates.isApproximate &&
+    result.coordinates.accuracyKm >= 100;
+
   // Merge coordinates: Prioritize Real Live GPS Fix if active, then Verified Plus Code, then OpenCage city override, then numbering centroid
   const activeCoordinatesResult: PhoneLookupResult = React.useMemo(() => {
     if (liveGpsFix) {
@@ -584,12 +592,16 @@ export const PhoneLookupView: React.FC<PhoneLookupViewProps> = ({
                 </div>
                 <div>
                   <h3 className="text-sm font-bold text-slate-100">
-                    Geocoded Location
+                    {countryOnly ? 'Location level' : 'Geocoded Location'}
                   </h3>
                 </div>
               </div>
 
-              {openCageData?.source === 'opencage_api' ? (
+              {countryOnly ? (
+                <div className="flex items-center gap-1 text-[11px] text-amber-300 bg-amber-950/40 border border-amber-800/40 px-2 py-0.5 rounded">
+                  <span>Country only</span>
+                </div>
+              ) : openCageData?.source === 'opencage_api' ? (
                 <div className="flex items-center gap-1 text-[11px] text-emerald-400 font-medium bg-emerald-950/40 border border-emerald-800/40 px-2 py-0.5 rounded">
                   <span>Live OpenCage API</span>
                 </div>
@@ -601,30 +613,39 @@ export const PhoneLookupView: React.FC<PhoneLookupViewProps> = ({
             </div>
 
             <div className="space-y-3 text-xs">
-              <div>
-                <span className="text-slate-400 block mb-0.5">OpenCage Geocoded Address:</span>
-                <span className="text-slate-100 font-medium text-xs break-words">
-                  {openCageData?.formattedAddress || result.regionOrCity}
-                </span>
-              </div>
+              {countryOnly ? (
+                <p className="text-slate-300 leading-relaxed">
+                  <strong className="text-slate-100">{result.countryName}</strong>: this number identifies a carrier and
+                  country, not a city or position. The dashed circle on the map marks the general area of the country, not a position. To find where
+                  the phone actually is, use its GPS (Track Real GPS, or a tracking link the owner agrees to open).
+                </p>
+              ) : (
+                <>
+                  <div>
+                    <span className="text-slate-400 block mb-0.5">Address:</span>
+                    <span className="text-slate-100 font-medium text-xs break-words">
+                      {openCageData?.formattedAddress || result.regionOrCity}
+                    </span>
+                  </div>
 
-              <div className="grid grid-cols-2 gap-3 pt-1 border-t border-slate-800/80">
-                <div>
-                  <span className="text-slate-400 block mb-0.5">Latitude:</span>
-                  <span className="text-cyan-400 font-mono tabular-nums font-semibold">
-                    {activeCoordinatesResult.coordinates.lat.toFixed(6)}
-                  </span>
-                </div>
-                <div>
-                  <span className="text-slate-400 block mb-0.5">Longitude:</span>
-                  <span className="text-cyan-400 font-mono tabular-nums font-semibold">
-                    {activeCoordinatesResult.coordinates.lng.toFixed(6)}
-                  </span>
-                </div>
-              </div>
+                  <div className="grid grid-cols-2 gap-3 pt-1 border-t border-slate-800/80">
+                    <div>
+                      <span className="text-slate-400 block mb-0.5">Latitude:</span>
+                      <span className="text-cyan-400 font-mono tabular-nums font-semibold">
+                        {activeCoordinatesResult.coordinates.lat.toFixed(6)}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-slate-400 block mb-0.5">Longitude:</span>
+                      <span className="text-cyan-400 font-mono tabular-nums font-semibold">
+                        {activeCoordinatesResult.coordinates.lng.toFixed(6)}
+                      </span>
+                    </div>
+                  </div>
+                </>
+              )}
             </div>
           </div>
-
           {/* Card 3: International Standard Formats */}
           <div className="bg-slate-900 border border-slate-800 rounded-xl p-5 shadow-lg space-y-3">
             <h3 className="text-xs font-bold text-slate-300 uppercase tracking-wider">
