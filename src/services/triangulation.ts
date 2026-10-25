@@ -76,6 +76,7 @@ export async function lookupCell(
   lac: number,
   cid: number,
   radio: string,
+  deep = false,
 ): Promise<CellLookupResult | null> {
   const params = new URLSearchParams({
     mcc: String(mcc),
@@ -84,6 +85,7 @@ export async function lookupCell(
     cid: String(cid),
     radio,
   });
+  if (deep) params.set('deep', '1');
   const res = await fetch(`/api/cell?${params.toString()}`);
   if (res.status === 404) return null;
   if (!res.ok) {

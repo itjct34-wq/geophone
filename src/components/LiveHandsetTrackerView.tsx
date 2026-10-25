@@ -279,7 +279,7 @@ export const LiveHandsetTrackerView: React.FC<LiveHandsetTrackerViewProps> = ({ 
 
   const cellKey = (c: ResolvedUserCell) => `${c.mcc}-${c.mnc}-${c.lac}-${c.cid}-${c.technology}`;
 
-  const runResolve = async (targets: ResolvedUserCell[], silent: boolean) => {
+  const runResolve = async (targets: ResolvedUserCell[], silent: boolean, deep = false) => {
     const cache = readCellCache();
     const now = Date.now();
     const resolved: Record<string, { lat: number; lng: number; rangeM: number; source: string }> = {};
@@ -288,7 +288,8 @@ export const LiveHandsetTrackerView: React.FC<LiveHandsetTrackerViewProps> = ({ 
 
     for (const c of targets) {
       const cached = cache[cellKey(c)];
-      if (cached && now - cached.ts < CELL_CACHE_TTL_MS) {
+      // A deep lookup retries cells earlier lookups could not find
+      if (cached && now - cached.ts < CELL_CACHE_TTL_MS && !(deep && !cached.hit)) {
         if (cached.hit) {
           resolved[c.id] = cached.hit;
           bySource[cached.hit.source] = (bySource[cached.hit.source] ?? 0) + 1;
@@ -309,7 +310,7 @@ export const LiveHandsetTrackerView: React.FC<LiveHandsetTrackerViewProps> = ({ 
       while (next < toFetch.length && !failure) {
         const c = toFetch[next++];
         try {
-          const hit = await lookupCell(c.mcc, c.mnc, c.lac, c.cid, c.technology);
+          const hit = await lookupCell(c.mcc, c.mnc, c.lac, c.cid, c.technology, deep);
           cache[cellKey(c)] = { ts: Date.now(), hit };
           if (hit) {
             resolved[c.id] = hit;
@@ -353,7 +354,8 @@ export const LiveHandsetTrackerView: React.FC<LiveHandsetTrackerViewProps> = ({ 
       setResolveMessage('All selected towers already have real positions.');
       return;
     }
-    return runResolve(targets, false);
+    // Unwired Labs allows only a few lookups a day, so it is used for small selections only
+    return runResolve(targets, false, triangulationCells.length > 0 && triangulationCells.length <= 5);
   };
 
   // Automatically resolve every tower once when this view opens
@@ -950,6 +952,7 @@ print("[✓] Generated cells_survey_map.html with your cellular dump!")
                 Clear selection
               </button>
               <span className="text-slate-400">{triangulationIds.length} cell(s) selected</span>
+              <span className="text-[11px] text-slate-500">Select 5 or fewer to also search Unwired Labs (limited daily quota).</span>
             </div>
 
             {resolveMessage && (

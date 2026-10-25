@@ -2,7 +2,8 @@
 // Sources are tried in order and the first hit wins:
 //   1. OpenCelliD   (needs OPENCELLID_KEY)
 //   2. BeaconDB     (open, no key)
-//   3. Unwired Labs (optional, needs UNWIREDLABS_TOKEN)
+//   3. Unwired Labs (optional, needs UNWIREDLABS_TOKEN; only when ?deep=1 because
+//      the free plan allows just a handful of requests per day)
 // Keys stay server-side.
 
 interface Hit {
@@ -101,7 +102,10 @@ export default async function handler(
   const radio: Radio = (['GSM', 'UMTS', 'LTE'] as const).find((r) => r === q('radio')) ?? 'GSM';
   const query: CellQuery = { mcc, mnc, lac, cid, radio };
 
-  for (const lookup of [fromOpenCellId, fromBeaconDb, fromUnwiredLabs]) {
+  const lookups = [fromOpenCellId, fromBeaconDb];
+  if (q('deep') === '1') lookups.push(fromUnwiredLabs);
+
+  for (const lookup of lookups) {
     const hit = await lookup(query);
     if (hit) {
       res.status(200).json(hit);
