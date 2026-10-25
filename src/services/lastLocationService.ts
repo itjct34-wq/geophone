@@ -47,3 +47,25 @@ export function timeAgo(iso: string, now = Date.now()): string {
   if (h < 48) return `${h} hour${h === 1 ? '' : 's'} ago`;
   return `${Math.round(h / 24)} days ago`;
 }
+
+/**
+ * Saves a position the user pasted from a message or map link (for example a location
+ * the person sent over WhatsApp) as that number's last known location.
+ */
+export async function savePastedLocation(e164: string, lat: number, lng: number): Promise<void> {
+  const now = new Date().toISOString();
+  const { error } = await supabase.from('share_sessions').insert({
+    label: PASTED_LABEL,
+    requested_by: '',
+    phone_e164: e164,
+    started_at: now,
+    ended_at: now,
+    last_lat: lat,
+    last_lng: lng,
+    last_accuracy: null,
+    last_at: now,
+  });
+  if (error) throw new Error(error.message);
+}
+
+export const PASTED_LABEL = 'Pasted location';

@@ -41,7 +41,13 @@ import {
 import { LiveTrackingShareModal } from './LiveTrackingShareModal';
 import { LastKnownLocationCard } from './LastKnownLocationCard';
 import { NumberActivityCard } from './NumberActivityCard';
-import { getLastKnownLocation, timeAgo, type LastKnownLocation } from '../services/lastLocationService';
+import {
+  getLastKnownLocation,
+  savePastedLocation,
+  timeAgo,
+  type LastKnownLocation,
+} from '../services/lastLocationService';
+import { parseSharedLocation } from '../services/locationParser';
 import { resolvePlusCode, isPlusCode, ResolvedPlusCode } from '../services/plusCodeService';
 
 interface PhoneLookupViewProps {
@@ -71,6 +77,22 @@ export const PhoneLookupView: React.FC<PhoneLookupViewProps> = ({
 }) => {
   // Last position the person shared for this number through a consent link
   const [lastKnown, setLastKnown] = useState<LastKnownLocation | null>(null);
+  const [lastKnownRefresh, setLastKnownRefresh] = useState(0);
+
+  // Saves a location the user pasted (a WhatsApp or map link, coordinates or a Plus Code)
+  const handleSavePasted = async (text: string): Promise<string | null> => {
+    const parsed = parseSharedLocation(text);
+    if ('error' in parsed) return parsed.error;
+    if (!result.e164) return 'Enter a valid number first.';
+    try {
+      await savePastedLocation(result.e164, parsed.lat, parsed.lng);
+      setLastKnownRefresh((n) => n + 1);
+      return null;
+    } catch (err) {
+      return err instanceof Error ? err.message : 'Could not save the location.';
+    }
+  };
+
   useEffect(() => {
     setLastKnown(null);
     const e164 = result.e164;
@@ -86,7 +108,7 @@ export const PhoneLookupView: React.FC<PhoneLookupViewProps> = ({
       cancelled = true;
       clearInterval(id);
     };
-  }, [result.e164, result.isValid]);
+  }, [result.e164, result.isValid, lastKnownRefresh]);
 
   const [copiedField, setCopiedField] = useState<string | null>(null);
   const [openCageKey] = useState<string>(USER_DEFAULT_OPENCAGE_KEY);
@@ -323,6 +345,7 @@ export const PhoneLookupView: React.FC<PhoneLookupViewProps> = ({
           location={lastKnown}
           onAskToShare={() => setIsShareModalOpen(true)}
           onOpenGodEye={onOpenGodEye}
+          onSavePasted={handleSavePasted}
         />
       )}
 
