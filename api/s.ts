@@ -19,6 +19,27 @@ const escapeHtml = (s: string) =>
 
 const first = (v: string | string[] | undefined) => (Array.isArray(v) ? v[0] : v) ?? '';
 
+// Resolve the app's own origin to fetch index.html from. Never trust the
+// request Host / X-Forwarded-Host header for this (it is attacker-controllable
+// and would turn this self-fetch into an SSRF). Prefer a deployment-provided
+// origin; only fall back to the request host, strictly validated, for local dev.
+function selfOrigin(req: Req): string {
+  if (process.env.APP_URL) return process.env.APP_URL.replace(/\/+$/, '');
+  if (process.env.VERCEL_URL) return `https://${process.env.VERCEL_URL}`;
+  const host = first(req.headers['x-forwarded-host']) || first(req.headers.host);
+  const proto = first(req.headers['x-forwarded-proto']) || 'https';
+  // Dev fallback only: accept a plain DNS hostname, never an IP literal,
+  // localhost, or internal/metadata address.
+  if (
+    /^[a-z0-9-]+(\.[a-z0-9-]+)+(:\d+)?$/i.test(host) &&
+    !/^\d{1,3}(\.\d{1,3}){3}/.test(host) &&
+    !/^localhost/i.test(host)
+  ) {
+    return `${proto}://${host}`;
+  }
+  return '';
+}
+
 async function requesterName(code: string): Promise<string> {
   const url = process.env.VITE_SUPABASE_URL;
   const key = process.env.VITE_SUPABASE_PUBLISHABLE_KEY;
@@ -38,14 +59,15 @@ async function requesterName(code: string): Promise<string> {
 }
 
 export default async function handler(req: Req, res: Res) {
-  const host = first(req.headers['x-forwarded-host']) || first(req.headers.host);
-  const proto = first(req.headers['x-forwarded-proto']) || 'https';
+  const origin = selfOrigin(req);
 
   let html = '';
-  try {
-    html = await (await fetch(`${proto}://${host}/`, { signal: AbortSignal.timeout(5000) })).text();
-  } catch {
-    html = '';
+  if (origin) {
+    try {
+      html = await (await fetch(`${origin}/`, { signal: AbortSignal.timeout(5000) })).text();
+    } catch {
+      html = '';
+    }
   }
   if (!html.includes('<head>')) {
     res.setHeader('Location', '/');

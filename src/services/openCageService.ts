@@ -63,8 +63,25 @@ export interface OpenCageGeosearchSuggestion {
   components?: Record<string, string>;
 }
 
-// User-provided API Key (kept secure and masked in user interfaces)
+// Optional per-user OpenCage key. The app's own key is NOT shipped here any
+// more: when no key is supplied we go through the /api/geocode server proxy,
+// which injects OPENCAGE_KEY server-side. A key set in VITE_OPENCAGE_KEY (or
+// typed by the user) is still used directly — but note VITE_ values ship in the
+// browser bundle, so prefer leaving it empty and setting OPENCAGE_KEY instead.
 export const USER_DEFAULT_OPENCAGE_KEY: string = import.meta.env.VITE_OPENCAGE_KEY ?? "";
+
+/**
+ * Builds the geocoding request URL. With a caller-supplied key we call OpenCage
+ * directly; without one we call our own same-origin proxy so the app key stays
+ * on the server. `params` must NOT already contain `key`.
+ */
+function geocodeRequestUrl(apiKey: string, params: URLSearchParams): string {
+  if (apiKey) {
+    params.set('key', apiKey);
+    return `https://api.opencagedata.com/geocode/v1/json?${params.toString()}`;
+  }
+  return `/api/geocode?${params.toString()}`;
+}
 
 /**
  * Forward Geocoding using OpenCage Geocoding API
@@ -83,7 +100,7 @@ export async function geocodeWithOpenCage(
   }
 ): Promise<OpenCageResult> {
   const cleanQuery = query.trim();
-  if (!cleanQuery || !apiKey) {
+  if (!cleanQuery) {
     return {
       lat: fallbackLat,
       lng: fallbackLng,
@@ -96,7 +113,6 @@ export async function geocodeWithOpenCage(
   try {
     const params = new URLSearchParams({
       q: cleanQuery,
-      key: apiKey,
       limit: String(options?.limit || 1),
       no_annotations: '0',
     });
@@ -111,7 +127,7 @@ export async function geocodeWithOpenCage(
       params.append('proximity', `${options.proximity.lat},${options.proximity.lng}`);
     }
 
-    const url = `https://api.opencagedata.com/geocode/v1/json?${params.toString()}`;
+    const url = geocodeRequestUrl(apiKey, params);
 
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 7000);
@@ -201,7 +217,6 @@ export async function reverseGeocodeWithOpenCage(
   try {
     const params = new URLSearchParams({
       q: `${lat.toFixed(6)},${lng.toFixed(6)}`,
-      key: apiKey,
       limit: '1',
       no_annotations: '0',
     });
@@ -210,7 +225,7 @@ export async function reverseGeocodeWithOpenCage(
       params.append('language', options.language);
     }
 
-    const url = `https://api.opencagedata.com/geocode/v1/json?${params.toString()}`;
+    const url = geocodeRequestUrl(apiKey, params);
 
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 7000);
@@ -293,12 +308,11 @@ export async function searchPlacesWithOpenCage(
   options?: { countryCode?: string; limit?: number }
 ): Promise<OpenCageGeosearchSuggestion[]> {
   const clean = query.trim();
-  if (clean.length < 2 || !apiKey) return [];
+  if (clean.length < 2) return [];
 
   try {
     const params = new URLSearchParams({
       q: clean,
-      key: apiKey,
       limit: String(options?.limit || 5),
       no_annotations: '1',
     });
@@ -307,7 +321,7 @@ export async function searchPlacesWithOpenCage(
       params.append('countrycode', options.countryCode.toLowerCase());
     }
 
-    const response = await fetch(`https://api.opencagedata.com/geocode/v1/json?${params.toString()}`, {
+    const response = await fetch(geocodeRequestUrl(apiKey, params), {
       headers: { Accept: 'application/json' },
     });
 
