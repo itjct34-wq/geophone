@@ -62,7 +62,12 @@ export const LiveTrackingShareModal: React.FC<LiveTrackingShareModalProps> = ({
       setSession(created);
       onCreated?.(created);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Could not create the link.');
+      const raw = err instanceof Error ? err.message : '';
+      setError(
+        /row-level security|violates/i.test(raw)
+          ? 'This link could not be created. Check that you have paid access, have accepted the Terms at the top of the page, that this number is not blocked, and that you are under today’s link limit.'
+          : raw || 'Could not create the link.',
+      );
     } finally {
       setBusy(false);
     }
