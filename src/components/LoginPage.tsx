@@ -120,6 +120,12 @@ export const LoginPage: React.FC = () => {
             {mode === 'signin' ? "No account? Create one" : 'Already registered? Sign in'}
           </button>
         </form>
+
+        <p className="text-center text-xs text-slate-500 mt-4">
+          By using GeoPhone you agree to the{' '}
+          <a href="/terms" className="underline hover:text-slate-300">Terms</a>{' '}and{' '}
+          <a href="/privacy" className="underline hover:text-slate-300">Privacy Policy</a>.
+        </p>
       </div>
     </div>
   );

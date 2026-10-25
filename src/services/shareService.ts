@@ -121,6 +121,16 @@ export async function stopSharing(token: string): Promise<void> {
   if (error) throw new Error(error.message);
 }
 
+/** Recipient reports a link, and optionally opts their number out of future links. */
+export async function reportLink(token: string, block: boolean, reason: string): Promise<void> {
+  const { error } = await supabase.rpc('report_link', {
+    p_token: token,
+    p_block: block,
+    p_reason: reason.slice(0, 500),
+  });
+  if (error) throw new Error(error.message);
+}
+
 /** Details the person chose to share on the consent page (all optional). */
 export interface SharedInfo {
   name?: string;

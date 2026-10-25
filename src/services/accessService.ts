@@ -5,6 +5,25 @@ export interface Profile {
   plan: 'free' | 'paid';
   paid_until: string | null;
   disabled: boolean;
+  /** Terms version this user last accepted, or null. */
+  terms_version: string | null;
+  terms_agreed_at: string | null;
+  /** New links allowed per day for this customer. */
+  daily_link_limit: number;
+}
+
+/** Keep in step with current_terms_version() in the database. */
+export const CURRENT_TERMS_VERSION = '2026-10-25';
+
+/** True once the user has accepted the current Terms. */
+export function hasAcceptedTerms(profile: Profile | null): boolean {
+  return !!profile && profile.terms_version === CURRENT_TERMS_VERSION;
+}
+
+/** Record that the signed-in user accepts the current Terms and Privacy Policy. */
+export async function acceptTerms(): Promise<void> {
+  const { error } = await supabase.rpc('accept_terms', { p_version: CURRENT_TERMS_VERSION });
+  if (error) throw new Error(error.message);
 }
 
 /** Paid access: the admin always, a customer while their paid period has not ended. */
@@ -17,7 +36,7 @@ export function hasPaidAccess(profile: Profile | null, now = Date.now()): boolea
 export async function fetchProfile(userId: string): Promise<Profile | null> {
   const { data, error } = await supabase
     .from('profiles')
-    .select('role, plan, paid_until, disabled')
+    .select('role, plan, paid_until, disabled, terms_version, terms_agreed_at, daily_link_limit')
     .eq('user_id', userId)
     .maybeSingle();
   if (error) throw new Error(error.message);
@@ -111,5 +130,28 @@ export async function adminSetPaymentLink(userId: string, link: string, price: s
     p_link: link.trim(),
     p_price: price.trim(),
   });
+  if (error) throw new Error(error.message);
+}
+
+// ---- Admin: recipient reports ----
+
+export interface ReportRow {
+  id: string;
+  email: string | null;
+  phone_e164: string | null;
+  reason: string;
+  blocked: boolean;
+  resolved: boolean;
+  created_at: string;
+}
+
+export async function adminListReports(): Promise<ReportRow[]> {
+  const { data, error } = await supabase.rpc('admin_list_reports');
+  if (error) throw new Error(error.message);
+  return (data ?? []) as ReportRow[];
+}
+
+export async function adminResolveReport(id: string): Promise<void> {
+  const { error } = await supabase.rpc('admin_resolve_report', { p_id: id });
   if (error) throw new Error(error.message);
 }

@@ -2,6 +2,8 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Loader2, Search } from 'lucide-react';
 import { adminListCustomers, adminSetAccess, adminSetPaymentLink, type CustomerRow } from '../services/accessService';
 import { timeAgo } from '../services/lastLocationService';
+import { AdminSecurity, type SecurityStatus } from './AdminSecurity';
+import { ReportsPanel } from './ReportsPanel';
 
 function accessLabel(c: CustomerRow, now = Date.now()): { text: string; tone: string } {
   if (c.role === 'admin') return { text: 'Admin', tone: 'text-cyan-200 bg-cyan-500/15 border-cyan-500/30' };
@@ -156,6 +158,8 @@ export const AdminView: React.FC = () => {
   const [error, setError] = useState('');
   const [query, setQuery] = useState('');
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [sec, setSec] = useState<SecurityStatus>('loading');
+  const onSec = useCallback((s: SecurityStatus) => setSec(s), []);
 
   const load = useCallback(async () => {
     try {
@@ -168,8 +172,8 @@ export const AdminView: React.FC = () => {
   }, []);
 
   useEffect(() => {
-    load();
-  }, [load]);
+    if (sec === 'ok') load();
+  }, [sec, load]);
 
   const change = async (c: CustomerRow, plan: 'free' | 'paid', days: number, disabled: boolean) => {
     setBusyId(c.user_id);
@@ -204,7 +208,11 @@ export const AdminView: React.FC = () => {
   ).length;
 
   return (
-    <div className="space-y-5 max-w-3xl">
+    <div className="space-y-6 max-w-3xl">
+      <AdminSecurity onStatus={onSec} />
+
+      {sec !== 'ok' ? null : (
+      <div className="space-y-5">
       <div className="space-y-1">
         <h1 className="text-xl font-bold tracking-tight text-slate-100">Customers</h1>
         <p className="text-sm text-slate-300">
@@ -246,6 +254,10 @@ export const AdminView: React.FC = () => {
             <CustomerCard key={c.user_id} c={c} busy={busyId === c.user_id} onChange={change} onSaveLink={saveLink} />
           ))}
         </ul>
+      )}
+
+      <ReportsPanel />
+      </div>
       )}
     </div>
   );

@@ -1,6 +1,6 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { supabase } from '../lib/supabase';
-import { fetchProfile, hasPaidAccess, type Profile } from '../services/accessService';
+import { fetchProfile, hasPaidAccess, hasAcceptedTerms, type Profile } from '../services/accessService';
 import type { AuthUser } from './types';
 
 interface AuthContextValue {
@@ -11,6 +11,8 @@ interface AuthContextValue {
   isAdmin: boolean;
   /** True for the admin and for customers whose paid period is running. */
   hasPaid: boolean;
+  /** True once the user has accepted the current Terms. */
+  hasTerms: boolean;
   /** Set when an account was switched off and the person was signed out. */
   notice: string;
   refreshProfile: () => Promise<void>;
@@ -108,6 +110,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       profile,
       isAdmin: profile?.role === 'admin' && !profile.disabled,
       hasPaid: hasPaidAccess(profile),
+      hasTerms: hasAcceptedTerms(profile),
       notice,
       refreshProfile,
       signIn,

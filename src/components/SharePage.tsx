@@ -1,13 +1,91 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { Radio, Loader2, Square } from 'lucide-react';
+import { Radio, Loader2, Square, Flag, Check } from 'lucide-react';
 import {
   fetchShareInfo,
   postSharePosition,
+  reportLink,
   sendShareInfo,
   stopSharing,
   type ShareInfo,
   type SharedInfo,
 } from '../services/shareService';
+
+/** Lets the recipient report a link and optionally opt their number out of future links. */
+const ReportControl: React.FC<{ token: string }> = ({ token }) => {
+  const [open, setOpen] = useState(false);
+  const [reason, setReason] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [done, setDone] = useState<null | 'reported' | 'blocked'>(null);
+  const [err, setErr] = useState('');
+
+  const send = async (block: boolean) => {
+    setBusy(true);
+    setErr('');
+    try {
+      await reportLink(token, block, reason);
+      setDone(block ? 'blocked' : 'reported');
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : 'Could not send your report.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  if (done) {
+    return (
+      <div role="status" className="flex items-start gap-2 p-3 rounded-lg bg-slate-950 border border-slate-700 text-sm text-slate-200">
+        <Check className="w-4 h-4 mt-0.5 shrink-0 text-emerald-300" aria-hidden="true" />
+        <span>
+          Thank you. {done === 'blocked'
+            ? 'Your number has been opted out, so this person cannot send it new links.'
+            : 'Your report has been sent.'} You can close this page.
+        </span>
+      </div>
+    );
+  }
+
+  return (
+    <div className="pt-1">
+      {!open ? (
+        <button
+          onClick={() => setOpen(true)}
+          className="inline-flex items-center gap-1.5 text-xs text-slate-400 hover:text-slate-200"
+        >
+          <Flag className="w-3.5 h-3.5" aria-hidden="true" /> Not expecting this? Report or opt out
+        </button>
+      ) : (
+        <div className="p-3 rounded-lg bg-slate-950 border border-slate-700 space-y-2.5">
+          <p className="text-sm text-slate-200">Report this request if you did not expect it.</p>
+          <textarea
+            value={reason}
+            onChange={(e) => setReason(e.target.value)}
+            maxLength={500}
+            rows={2}
+            placeholder="What happened? (optional)"
+            className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-sm text-slate-100 placeholder:text-slate-500 focus:outline-none focus:border-cyan-500"
+          />
+          {err && <p role="alert" className="text-xs text-rose-300">{err}</p>}
+          <div className="flex flex-wrap gap-2">
+            <button
+              onClick={() => send(true)}
+              disabled={busy}
+              className="h-10 px-4 text-sm font-semibold text-slate-950 bg-amber-300 hover:bg-amber-200 disabled:opacity-60 rounded-lg transition-colors"
+            >
+              Report and opt my number out
+            </button>
+            <button
+              onClick={() => send(false)}
+              disabled={busy}
+              className="h-10 px-4 text-sm text-slate-200 bg-slate-800 hover:bg-slate-700 disabled:opacity-60 border border-slate-700 rounded-lg transition-colors"
+            >
+              Just report
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
 
 /** Short, readable description of the browser and system, e.g. "Chrome on Android". */
 function describeDevice(): string {
@@ -358,7 +436,15 @@ export const SharePage: React.FC<{ token: string }> = ({ token }) => {
       )}
 
       <p className="text-xs text-slate-400 leading-relaxed">
-        Not expecting this? Close the page and nothing is shared. This link stops working on its own after 24 hours.
+        Nothing is shared unless you tap the button above. This link stops working on its own after 24 hours.
+      </p>
+
+      <ReportControl token={token} />
+
+      <p className="text-xs text-slate-500">
+        <a href="/terms" className="underline hover:text-slate-300">Terms</a>
+        {' · '}
+        <a href="/privacy" className="underline hover:text-slate-300">Privacy</a>
       </p>
     </>,
   );
