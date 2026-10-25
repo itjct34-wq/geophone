@@ -345,6 +345,8 @@ export const PhoneLookupView: React.FC<PhoneLookupViewProps> = ({
                 <h3 className="text-sm font-bold text-slate-100">
                   {liveGpsFix
                     ? 'Device GPS active'
+                    : lastKnown
+                    ? 'Last shared location'
                     : (isPlusCodeActive && activePlusCodeFix)
                     ? `Plus Code location: ${activePlusCodeFix.shortCode}`
                     : result.subAllocation
@@ -360,13 +362,17 @@ export const PhoneLookupView: React.FC<PhoneLookupViewProps> = ({
                     ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/30'
                     : 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
                 }`}>
-                  {liveGpsFix ? `±${liveGpsFix.accuracy}m GPS Accuracy` : (isPlusCodeActive && activePlusCodeFix) ? '±14m Plus Code Exact Fix' : result.subAllocation ? 'Regional exchange' : 'Approximate'}
+                  {liveGpsFix ? `±${liveGpsFix.accuracy}m GPS Accuracy` : lastKnown ? `±${Math.round(lastKnown.accuracy ?? 50)}m GPS` : (isPlusCodeActive && activePlusCodeFix) ? '±14m Plus Code Exact Fix' : result.subAllocation ? 'Regional exchange' : 'Approximate'}
                 </span>
               </div>
               <p className="text-xs text-slate-300 leading-relaxed max-w-3xl">
                 {liveGpsFix ? (
                   <span>
                     Your device's GPS reports <strong className="text-emerald-400 font-mono">{liveGpsFix.lat.toFixed(5)}, {liveGpsFix.lng.toFixed(5)}</strong>.
+                  </span>
+                ) : lastKnown ? (
+                  <span>
+                    The person shared their phone's GPS position {timeAgo(lastKnown.at)}. The map shows that position, not the number's registered area.
                   </span>
                 ) : (isPlusCodeActive && activePlusCodeFix) ? (
                   <span>
