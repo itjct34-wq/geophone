@@ -1,7 +1,9 @@
 import React, { useEffect, useState } from 'react';
-import { Radio, Lock, LogOut, LogIn } from 'lucide-react';
+import { Radio, Lock, LogOut, LogIn, ChevronDown } from 'lucide-react';
 import { useAuth } from '../auth/AuthContext';
 import { adminListCustomers } from '../services/accessService';
+import { useI18n } from '../i18n';
+import { LangToggle } from './LangToggle';
 
 export type TabId =
   | 'home'
@@ -37,6 +39,8 @@ interface TabDef {
 
 export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab }) => {
   const { user, isAdmin, hasPaid, signOut } = useAuth();
+  const { t } = useI18n();
+  const [moreOpen, setMoreOpen] = useState(false);
 
   // Admin: how many customers are waiting, and whether any say they have paid
   const [waiting, setWaiting] = useState({ requests: 0, paid: 0 });
@@ -61,27 +65,37 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab }) => {
     };
   }, [isAdmin, activeTab]);
 
-  const tabs: TabDef[] = ([
-    { id: 'lookup', label: 'Single Lookup' },
-    { id: 'live_gps', label: 'Live GPS & Towers', paid: true },
-    { id: 'batch', label: 'Batch Analysis', account: true },
-    { id: 'ip', label: 'IP & Network' },
-    { id: 'god_eye', label: 'God Eye', paid: true },
-    { id: 'history', label: 'History', account: true },
-    { id: 'investigations', label: 'Investigations', paid: true },
-    { id: 'public_osint', label: 'Username / Email / Image' },
-    { id: 'resource_hub', label: 'Resource Hub' },
-    { id: 'campaigns', label: 'Campaigns & SMS', paid: true },
-    ...(user ? [isAdmin ? { id: 'admin', label: 'Customers' } : { id: 'plan', label: 'Plan' }] : []),
-  ] as TabDef[]).filter((t) => !t.account || user);
+  const primaryTabs: TabDef[] = (
+    [
+      { id: 'lookup', label: t('navLookup') },
+      { id: 'ip', label: t('navIp') },
+      { id: 'live_gps', label: t('navLive'), paid: true },
+      { id: 'god_eye', label: t('navGodEye'), paid: true },
+    ] as TabDef[]
+  ).filter((tab) => !tab.account || user);
 
-  const content = (t: TabDef) => (
+  const moreTabs: TabDef[] = (
+    [
+      { id: 'batch', label: t('navBatch'), account: true },
+      { id: 'history', label: t('navHistory'), account: true },
+      { id: 'public_osint', label: t('navOsint') },
+      { id: 'resource_hub', label: t('navHub') },
+      { id: 'investigations', label: t('navInvest'), paid: true },
+      { id: 'campaigns', label: t('navCampaigns'), paid: true },
+      ...(user ? [isAdmin ? { id: 'admin' as const, label: t('navCustomers') } : { id: 'plan' as const, label: t('navPlan') }] : []),
+    ] as TabDef[]
+  ).filter((tab) => !tab.account || user);
+
+  const allTabs = [...primaryTabs, ...moreTabs];
+  const moreActive = moreTabs.some((tab) => tab.id === activeTab);
+
+  const content = (tab: TabDef) => (
     <>
-      {t.label}
-      {t.paid && !hasPaid && (
-        <Lock className="w-3 h-3 ml-1.5 inline-block align-[-1px] text-slate-400" aria-label="Paid feature" />
+      {tab.label}
+      {tab.paid && !hasPaid && (
+        <Lock className="w-3 h-3 mx-1.5 inline-block align-[-1px] text-slate-400" aria-label="Paid feature" />
       )}
-      {t.id === 'admin' && waiting.requests > 0 && (
+      {tab.id === 'admin' && waiting.requests > 0 && (
         <span
           className={`ml-2 inline-flex items-center justify-center min-w-5 h-5 px-1.5 rounded-full text-xs font-bold text-slate-950 ${
             waiting.paid > 0 ? 'bg-emerald-400' : 'bg-amber-300'
@@ -93,6 +107,11 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab }) => {
       )}
     </>
   );
+
+  const tabButtonClass = (id: TabId, active: boolean) =>
+    `transition-colors whitespace-nowrap shrink-0 pb-1 border-b-2 ${
+      active ? 'text-cyan-400 border-cyan-400 font-semibold' : 'border-transparent hover:text-slate-100'
+    }`;
 
   return (
     <div className="sticky top-0 z-50 bg-slate-950/80 backdrop-blur-md border-b border-slate-800">
@@ -110,24 +129,64 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab }) => {
           </span>
         </button>
 
-        <nav aria-label="Sections" className="hidden lg:flex items-center gap-6 text-sm font-medium text-slate-300">
-          {tabs.map((t) => (
+        <nav aria-label="Primary sections" className="hidden lg:flex items-center gap-5 text-sm font-medium text-slate-300">
+          {primaryTabs.map((tab) => (
             <button
-              key={t.id}
-              onClick={() => setActiveTab(t.id)}
-              aria-current={activeTab === t.id ? 'page' : undefined}
-              className={`transition-colors whitespace-nowrap shrink-0 pb-1 border-b-2 ${
-                activeTab === t.id
-                  ? 'text-cyan-400 border-cyan-400 font-semibold'
-                  : 'border-transparent hover:text-slate-100'
-              }`}
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              aria-current={activeTab === tab.id ? 'page' : undefined}
+              className={tabButtonClass(tab.id, activeTab === tab.id)}
             >
-              {content(t)}
+              {content(tab)}
             </button>
           ))}
+
+          <div className="relative">
+            <button
+              type="button"
+              onClick={() => setMoreOpen((o) => !o)}
+              aria-expanded={moreOpen}
+              aria-haspopup="menu"
+              className={`inline-flex items-center gap-1 ${tabButtonClass('resource_hub', moreActive && !primaryTabs.some((p) => p.id === activeTab))}`}
+            >
+              More
+              <ChevronDown className={`w-3.5 h-3.5 transition-transform ${moreOpen ? 'rotate-180' : ''}`} aria-hidden="true" />
+            </button>
+            {moreOpen && (
+              <>
+                <button
+                  type="button"
+                  className="fixed inset-0 z-40 cursor-default"
+                  aria-label="Close menu"
+                  onClick={() => setMoreOpen(false)}
+                />
+                <div
+                  role="menu"
+                  className="absolute right-0 top-full z-50 mt-2 min-w-[14rem] rounded-xl border border-slate-800 bg-slate-950 py-1 shadow-xl"
+                >
+                  {moreTabs.map((tab) => (
+                    <button
+                      key={tab.id}
+                      role="menuitem"
+                      onClick={() => {
+                        setActiveTab(tab.id);
+                        setMoreOpen(false);
+                      }}
+                      className={`w-full text-left px-3 py-2 text-sm transition-colors ${
+                        activeTab === tab.id ? 'bg-slate-900 text-cyan-300' : 'text-slate-300 hover:bg-slate-900 hover:text-slate-100'
+                      }`}
+                    >
+                      {content(tab)}
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
+          </div>
         </nav>
 
-        <div className="flex items-center gap-3 shrink-0">
+        <div className="flex items-center gap-2 sm:gap-3 shrink-0">
+          <LangToggle />
           {user ? (
             <button
               onClick={signOut}
@@ -135,7 +194,7 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab }) => {
               className="flex items-center gap-2 px-3 h-10 text-sm font-medium text-slate-300 hover:text-slate-100 border border-slate-700 rounded-lg transition-colors whitespace-nowrap shrink-0"
             >
               <LogOut className="w-4 h-4" aria-hidden="true" />
-              <span className="hidden sm:inline">Sign out</span>
+              <span className="hidden sm:inline">{t('signOut')}</span>
               <span className="sm:hidden sr-only">Sign out</span>
             </button>
           ) : (
@@ -150,23 +209,23 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab }) => {
         </div>
       </header>
 
-      {/* Mobile navigation (the desktop links above are hidden below lg) */}
+      {/* Mobile navigation */}
       <nav
         aria-label="Sections"
         className="lg:hidden flex items-center gap-5 px-4 sm:px-6 overflow-x-auto text-sm font-medium text-slate-300 border-t border-slate-800/60"
       >
-        {tabs.map((t) => (
+        {allTabs.map((tab) => (
           <button
-            key={t.id}
-            onClick={() => setActiveTab(t.id)}
-            aria-current={activeTab === t.id ? 'page' : undefined}
+            key={tab.id}
+            onClick={() => setActiveTab(tab.id)}
+            aria-current={activeTab === tab.id ? 'page' : undefined}
             className={`py-3 whitespace-nowrap shrink-0 border-b-2 transition-colors ${
-              activeTab === t.id
+              activeTab === tab.id
                 ? 'text-cyan-400 border-cyan-400 font-semibold'
                 : 'border-transparent hover:text-slate-100'
             }`}
           >
-            {content(t)}
+            {content(tab)}
           </button>
         ))}
       </nav>

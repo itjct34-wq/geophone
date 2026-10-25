@@ -62,6 +62,8 @@ import {
   readManualTowers,
   writeManualTowers,
 } from '../services/manualTowers';
+import { canUse, consumeUsage, usageLimitMessage } from '../services/usageLimits';
+import { useAuth } from '../auth/AuthContext';
 
 const escapePopupHtml = (value: unknown): string =>
   String(value ?? '').replace(/[&<>"']/g, (ch) => ({
@@ -79,6 +81,7 @@ interface LiveHandsetTrackerViewProps {
 }
 
 export const LiveHandsetTrackerView: React.FC<LiveHandsetTrackerViewProps> = ({ currentNumber }) => {
+  const { hasPaid } = useAuth();
   const [activeTab, setActiveTab] = useState<'user_dump' | 'cells_table' | 'triangulation' | 'gps_link' | 'python_cells'>('user_dump');
   const [mapLayer, setMapLayer] = useState<MapTileLayer>('standard');
 
@@ -422,6 +425,10 @@ export const LiveHandsetTrackerView: React.FC<LiveHandsetTrackerViewProps> = ({ 
 
   const handleResolveRealTowers = () => {
     if (isResolving) return;
+    if (!canUse('cell_resolve', hasPaid)) {
+      setResolveMessage(usageLimitMessage('cell_resolve'));
+      return;
+    }
     const candidates = (triangulationCells.length > 0 ? triangulationCells : userCells).filter((c) => c.isApproximate);
     if (candidates.length === 0) {
       setResolveMessage('All selected towers already have real positions.');
@@ -429,6 +436,7 @@ export const LiveHandsetTrackerView: React.FC<LiveHandsetTrackerViewProps> = ({ 
     }
 
     // Keep provider requests bounded; select the specific cells first when possible.
+    consumeUsage('cell_resolve');
     const targets = candidates.slice(0, 5);
     const omitted = candidates.length - targets.length;
     const selectedCells = triangulationCells.length > 0;

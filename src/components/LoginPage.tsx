@@ -1,9 +1,12 @@
 import React, { useState } from 'react';
 import { Radio, Lock, User, Loader2, ArrowLeft } from 'lucide-react';
 import { useAuth } from '../auth/AuthContext';
+import { useI18n } from '../i18n';
+import { LangToggle } from './LangToggle';
 
 export const LoginPage: React.FC<{ onBack?: () => void }> = ({ onBack }) => {
   const { signIn, signUp, notice: accountNotice } = useAuth();
+  const { t, dir } = useI18n();
   const [mode, setMode] = useState<'signin' | 'signup'>('signin');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -18,9 +21,9 @@ export const LoginPage: React.FC<{ onBack?: () => void }> = ({ onBack }) => {
     setBusy(true);
     try {
       if (mode === 'signin') await signIn(email, password);
-      else if (!(await signUp(email, password))) setNotice('Check your email to confirm your account, then sign in.');
+      else if (!(await signUp(email, password))) setNotice(t('confirmEmail'));
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Something went wrong.');
+      setError(err instanceof Error ? err.message : t('somethingWrong'));
     } finally {
       setBusy(false);
     }
@@ -30,17 +33,22 @@ export const LoginPage: React.FC<{ onBack?: () => void }> = ({ onBack }) => {
     'w-full bg-slate-950 border border-slate-800 rounded-lg pl-10 pr-3 py-2.5 text-sm text-slate-100 placeholder:text-slate-600 focus:outline-none focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500';
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 flex items-center justify-center px-4 selection:bg-cyan-500 selection:text-slate-950">
+    <div dir={dir} className="min-h-screen bg-slate-950 text-slate-100 flex items-center justify-center px-4 selection:bg-cyan-500 selection:text-slate-950">
       <div className="w-full max-w-sm">
-        {onBack && (
-          <button
-            onClick={onBack}
-            className="mb-4 inline-flex items-center gap-1.5 text-sm text-slate-400 transition-colors hover:text-slate-200"
-          >
-            <ArrowLeft className="h-4 w-4" aria-hidden="true" />
-            Back to GeoPhone
-          </button>
-        )}
+        <div className="mb-4 flex items-center justify-between gap-2">
+          {onBack ? (
+            <button
+              onClick={onBack}
+              className="inline-flex items-center gap-1.5 text-sm text-slate-400 transition-colors hover:text-slate-200"
+            >
+              <ArrowLeft className="h-4 w-4 rtl:rotate-180" aria-hidden="true" />
+              {t('backToGeo')}
+            </button>
+          ) : (
+            <span />
+          )}
+          <LangToggle />
+        </div>
         <div className="flex items-center justify-center gap-2 mb-8">
           <div className="w-9 h-9 rounded-lg bg-cyan-500/10 border border-cyan-500/30 flex items-center justify-center text-cyan-400">
             <Radio className="w-5 h-5" />
@@ -54,12 +62,10 @@ export const LoginPage: React.FC<{ onBack?: () => void }> = ({ onBack }) => {
         >
           <div>
             <h1 className="text-base font-bold">
-              {mode === 'signin' ? 'Sign in to continue' : 'Create your account'}
+              {mode === 'signin' ? t('loginContinue') : t('loginCreate')}
             </h1>
             <p className="text-xs text-slate-400 mt-1">
-              {mode === 'signin'
-                ? 'Access phone intelligence and map tools.'
-                : 'Use your email and a password of 8+ characters.'}
+              {mode === 'signin' ? t('loginSub') : t('signupSub')}
             </p>
           </div>
 
@@ -70,7 +76,7 @@ export const LoginPage: React.FC<{ onBack?: () => void }> = ({ onBack }) => {
               <input
                 className={inputClass}
                 type="email"
-                placeholder="Email"
+                placeholder={t('emailPh')}
                 autoComplete="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
@@ -86,7 +92,7 @@ export const LoginPage: React.FC<{ onBack?: () => void }> = ({ onBack }) => {
               <input
                 className={inputClass}
                 type="password"
-                placeholder="Password"
+                placeholder={t('passwordPh')}
                 autoComplete={mode === 'signin' ? 'current-password' : 'new-password'}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
@@ -115,7 +121,7 @@ export const LoginPage: React.FC<{ onBack?: () => void }> = ({ onBack }) => {
             className="w-full flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-semibold text-slate-950 bg-cyan-400 hover:bg-cyan-300 disabled:opacity-60 rounded-lg transition-colors"
           >
             {busy && <Loader2 className="w-4 h-4 animate-spin" />}
-            {mode === 'signin' ? 'Sign in' : 'Create account'}
+            {mode === 'signin' ? t('signIn') : t('createAccountBtn')}
           </button>
 
           <button
@@ -126,14 +132,14 @@ export const LoginPage: React.FC<{ onBack?: () => void }> = ({ onBack }) => {
             }}
             className="w-full text-xs text-slate-400 hover:text-cyan-300 transition-colors"
           >
-            {mode === 'signin' ? "No account? Create one" : 'Already registered? Sign in'}
+            {mode === 'signin' ? t('noAccount') : t('haveAccount')}
           </button>
         </form>
 
         <p className="text-center text-xs text-slate-500 mt-4">
-          By using GeoPhone you agree to the{' '}
-          <a href="/terms" className="underline hover:text-slate-300">Terms</a>{' '}and{' '}
-          <a href="/privacy" className="underline hover:text-slate-300">Privacy Policy</a>.
+          {t('byUsing')}{' '}
+          <a href="/terms" className="underline hover:text-slate-300">{t('terms')}</a>{' '}{t('and')}{' '}
+          <a href="/privacy" className="underline hover:text-slate-300">{t('privacy')}</a>.
         </p>
       </div>
     </div>

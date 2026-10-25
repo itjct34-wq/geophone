@@ -2,9 +2,15 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import L from 'leaflet';
 import { Globe2, Loader2, Search, Wifi, Eye, Info } from 'lucide-react';
 import { lookupIp, type IpLookupResult } from '../services/ipService';
+import { useAuth } from '../auth/AuthContext';
+import { canUse, consumeUsage, usageLimitMessage } from '../services/usageLimits';
+import { UsageMeter } from './UsageMeter';
 
 interface IpNetworkViewProps {
   onOpenGodEye: (target: { lat: number; lng: number; label: string }) => void;
+  onUsageChange?: () => void;
+  usageTick?: number;
+  onRequestUpgrade?: () => void;
 }
 
 interface ConnectionInfo {
@@ -98,7 +104,13 @@ const IpCard: React.FC<{
   );
 };
 
-export const IpNetworkView: React.FC<IpNetworkViewProps> = ({ onOpenGodEye }) => {
+export const IpNetworkView: React.FC<IpNetworkViewProps> = ({
+  onOpenGodEye,
+  onUsageChange,
+  usageTick = 0,
+  onRequestUpgrade,
+}) => {
+  const { hasPaid } = useAuth();
   const [mine, setMine] = useState<IpLookupResult | null>(null);
   const [mineError, setMineError] = useState('');
   const [query, setQuery] = useState('');
@@ -109,6 +121,7 @@ export const IpNetworkView: React.FC<IpNetworkViewProps> = ({ onOpenGodEye }) =>
   const [conn, setConn] = useState<ConnectionInfo>(readConnection);
 
   useEffect(() => {
+    // Auto "your IP" lookup does not consume freemium quota — only explicit searches do.
     lookupIp()
       .then(setMine)
       .catch((err) => setMineError(err instanceof Error ? err.message : 'Could not look up your IP.'));
@@ -132,13 +145,21 @@ export const IpNetworkView: React.FC<IpNetworkViewProps> = ({ onOpenGodEye }) =>
       e.preventDefault();
       const target = query.trim();
       if (!target) return;
+      if (!canUse('ip_lookup', hasPaid, target)) {
+        setError(usageLimitMessage('ip_lookup'));
+        return;
+      }
       const requestId = ++lookupRequestRef.current;
       setBusy(true);
       setError('');
       setResult(null);
       try {
         const data = await lookupIp(target);
-        if (requestId === lookupRequestRef.current) setResult(data);
+        if (requestId === lookupRequestRef.current) {
+          consumeUsage('ip_lookup', target);
+          onUsageChange?.();
+          setResult(data);
+        }
       } catch (err) {
         if (requestId === lookupRequestRef.current) {
           setResult(null);
@@ -148,15 +169,27 @@ export const IpNetworkView: React.FC<IpNetworkViewProps> = ({ onOpenGodEye }) =>
         if (requestId === lookupRequestRef.current) setBusy(false);
       }
     },
-    [query],
+    [query, hasPaid, onUsageChange],
   );
 
   return (
     <div className="space-y-6">
+      <UsageMeter feature="ip_lookup" hasPaid={hasPaid} refreshKey={usageTick} />
       <div className="bg-slate-900 border border-slate-800 rounded-xl p-5 space-y-4">
-        <div className="flex items-center gap-2">
-          <Globe2 className="w-5 h-5 text-cyan-400" />
-          <h2 className="text-base font-bold text-slate-100">IP & Network Lookup</h2>
+        <div className="flex items-center justify-between gap-3 flex-wrap">
+          <div className="flex items-center gap-2">
+            <Globe2 className="w-5 h-5 text-cyan-400" />
+            <h2 className="text-base font-bold text-slate-100">IP & Network Lookup</h2>
+          </div>
+          {!hasPaid && onRequestUpgrade && (
+            <button
+              type="button"
+              onClick={onRequestUpgrade}
+              className="text-xs font-semibold text-cyan-300 hover:text-cyan-200"
+            >
+              Raise daily limits
+            </button>
+          )}
         </div>
 
         <form onSubmit={handleLookup} className="flex flex-col sm:flex-row gap-2">

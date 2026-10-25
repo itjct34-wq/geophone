@@ -21,9 +21,12 @@ import { CampaignCenter } from './components/CampaignCenter';
 import { TermsGate } from './components/TermsGate';
 import { LandingPage } from './components/LandingPage';
 import { LoginPage } from './components/LoginPage';
+import { UsageMeter } from './components/UsageMeter';
 import { useAuth } from './auth/AuthContext';
+import { canUse, consumeUsage, usageLimitMessage } from './services/usageLimits';
 const GodEyeView = lazy(() => import('./components/GodEyeView').then((m) => ({ default: m.GodEyeView })));
 import { parsePhoneNumber } from './services/phoneParser';
+import { Info, ShieldCheck } from 'lucide-react';
 
 /** Tabs that require a signed-in account; a logged-out visitor is sent home instead. */
 const ACCOUNT_TABS: TabId[] = ['batch', 'history', 'plan', 'admin'];
@@ -32,6 +35,8 @@ export default function App() {
   const { user, isAdmin, hasPaid } = useAuth();
   const [activeTab, setActiveTab] = useState<TabId>(user ? 'lookup' : 'home');
   const [inputNumber, setInputNumber] = useState('');
+  const [usageTick, setUsageTick] = useState(0);
+  const [lookupBlocked, setLookupBlocked] = useState(false);
 
   // Keep the active tab consistent with the sign-in state.
   React.useEffect(() => {
@@ -44,6 +49,25 @@ export default function App() {
   const phoneResult = useMemo(() => {
     return parsePhoneNumber(inputNumber);
   }, [inputNumber]);
+
+  // Freemium: count distinct valid numbers per UTC day for free / anonymous users.
+  React.useEffect(() => {
+    if (hasPaid) {
+      setLookupBlocked(false);
+      return;
+    }
+    if (!phoneResult.isValid || !phoneResult.e164) {
+      setLookupBlocked(false);
+      return;
+    }
+    if (!canUse('phone_lookup', false, phoneResult.e164)) {
+      setLookupBlocked(true);
+      return;
+    }
+    consumeUsage('phone_lookup', phoneResult.e164);
+    setLookupBlocked(false);
+    setUsageTick((n) => n + 1);
+  }, [phoneResult.e164, phoneResult.isValid, hasPaid]);
 
   // A position sent to the globe from another tab (e.g. an IP lookup) wins over the number's
   const [globeOverride, setGlobeOverride] = useState<{ lat: number; lng: number; label: string } | null>(null);
@@ -67,6 +91,7 @@ export default function App() {
   const lastSavedRef = React.useRef<string | null>(null);
   React.useEffect(() => {
     if (!user) return; // history is per-account; logged-out lookups are not saved
+    if (lookupBlocked && !hasPaid) return;
     if (!phoneResult.isValid || !phoneResult.e164) return;
     if (lastSavedRef.current === phoneResult.e164) return;
     const timer = setTimeout(() => {
@@ -74,7 +99,7 @@ export default function App() {
       addHistory(phoneResult).catch((err) => console.warn('[history] save failed:', err));
     }, 1500);
     return () => clearTimeout(timer);
-  }, [phoneResult]);
+  }, [phoneResult, user, lookupBlocked, hasPaid]);
 
   // Handle URL query params for shareable live tracking links
   React.useEffect(() => {
@@ -114,23 +139,58 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col selection:bg-cyan-500 selection:text-slate-950">
-      {/* Navigation Header adhering to 3-zone contract */}
       <Navbar activeTab={activeTab} setActiveTab={setActiveTab} />
 
-      {/* Main Content Area */}
+      <div className="border-b border-slate-800/80 bg-slate-900/40">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-2 flex flex-col sm:flex-row sm:items-center gap-2 text-xs text-slate-400">
+          <span className="inline-flex items-center gap-1.5 text-emerald-300/90 font-medium">
+            <ShieldCheck className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />
+            Public metadata &amp; consent-based location
+          </span>
+          <span className="hidden sm:inline text-slate-700" aria-hidden="true">
+            ·
+          </span>
+          <span className="inline-flex items-start gap-1.5 leading-relaxed">
+            <Info className="w-3.5 h-3.5 shrink-0 mt-0.5 text-slate-500" aria-hidden="true" />
+            Carrier / MCC-MNC and OpenCelliD-style tower data are not live handset tracking. Location maps require the
+            person&apos;s agreement.
+          </span>
+        </div>
+      </div>
+
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6">
         <TermsGate />
+
         {activeTab === 'lookup' && (
-          <PhoneLookupView
-            inputNumber={inputNumber}
-            setInputNumber={setInputNumber}
-            result={phoneResult}
-            onSwitchTab={setActiveTab}
-            onOpenGodEye={(target) => {
-              setGlobeOverride(target);
-              setActiveTab('god_eye');
-            }}
-          />
+          <div className="space-y-4">
+            <UsageMeter feature="phone_lookup" hasPaid={hasPaid} refreshKey={usageTick} />
+            {lookupBlocked && !hasPaid && (
+              <div
+                role="status"
+                className="rounded-xl border border-amber-800/60 bg-amber-950/30 px-4 py-3 text-sm text-amber-100 space-y-2"
+              >
+                <p>{usageLimitMessage('phone_lookup')}</p>
+                <button
+                  type="button"
+                  onClick={() => setActiveTab(user ? 'plan' : 'signin')}
+                  className="h-9 px-3 text-xs font-semibold rounded-lg bg-cyan-400 text-slate-950 hover:bg-cyan-300"
+                >
+                  {user ? 'See paid plan' : 'Sign in to upgrade'}
+                </button>
+              </div>
+            )}
+            <PhoneLookupView
+              inputNumber={inputNumber}
+              setInputNumber={setInputNumber}
+              result={phoneResult}
+              enrichmentAllowed={hasPaid || !lookupBlocked}
+              onSwitchTab={setActiveTab}
+              onOpenGodEye={(target) => {
+                setGlobeOverride(target);
+                setActiveTab('god_eye');
+              }}
+            />
+          </div>
         )}
 
         {activeTab === 'live_gps' &&
@@ -139,14 +199,12 @@ export default function App() {
           ) : (
             <LockedFeature
               title="Live GPS and towers are part of paid access"
-              description="Send a consent link to see where a person is when they agree to share, with live updates and their last known position. Also includes the cell tower map and triangulation."
+              description="Send a consent link to see where a person is when they agree to share, with live updates and their last known position. Also includes the cell tower map and triangulation via OpenCelliD / BeaconDB."
               onSignIn={openSignIn}
             />
           ))}
 
-        {activeTab === 'batch' && (
-          <BatchTrackerView onSelectNumber={handleSelectBatchNumber} />
-        )}
+        {activeTab === 'batch' && <BatchTrackerView onSelectNumber={handleSelectBatchNumber} />}
 
         {activeTab === 'ip' && (
           <IpNetworkView
@@ -154,12 +212,21 @@ export default function App() {
               setGlobeOverride(target);
               setActiveTab('god_eye');
             }}
+            onUsageChange={() => setUsageTick((n) => n + 1)}
+            usageTick={usageTick}
+            onRequestUpgrade={() => setActiveTab(user ? 'plan' : 'signin')}
           />
         )}
 
         {activeTab === 'god_eye' &&
           (hasPaid ? (
-            <Suspense fallback={<p className="text-sm text-slate-400 p-6">Loading globe...</p>}>
+            <Suspense
+              fallback={
+                <div role="status" className="rounded-xl border border-slate-800 bg-slate-900 p-6 text-sm text-slate-400">
+                  Loading globe…
+                </div>
+              }
+            >
               <GodEyeView target={globeOverride ?? godEyeTarget} />
             </Suspense>
           ) : (
@@ -203,15 +270,23 @@ export default function App() {
         {activeTab === 'admin' && isAdmin && <AdminView />}
       </main>
 
-      {/* Footer */}
       <footer className="border-t border-slate-800/80 bg-slate-950 py-6 text-xs text-slate-500">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col md:flex-row items-center justify-between gap-4">
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center justify-center gap-x-2 gap-y-1">
             <span className="font-semibold text-slate-400">GeoPhone Intelligence</span>
             <span aria-hidden="true">·</span>
             <span>Maps © OpenStreetMap contributors</span>
+            <span aria-hidden="true">·</span>
+            <span>Towers via OpenCelliD / BeaconDB when configured</span>
           </div>
-
+          <div className="flex items-center gap-3">
+            <a href="/terms" className="hover:text-slate-300 transition-colors">
+              Terms
+            </a>
+            <a href="/privacy" className="hover:text-slate-300 transition-colors">
+              Privacy
+            </a>
+          </div>
         </div>
       </footer>
     </div>

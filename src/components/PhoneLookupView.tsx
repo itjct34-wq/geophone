@@ -32,6 +32,7 @@ import {
 import { PhoneLookupResult, PresetNumber } from '../types/phone';
 import { PRESET_NUMBERS } from '../data/phoneData';
 import { FoliumMapView } from './FoliumMapView';
+import type { TabId } from './Navbar';
 import {
   geocodeWithOpenCage,
   reverseGeocodeWithOpenCage,
@@ -57,7 +58,9 @@ interface PhoneLookupViewProps {
   inputNumber: string;
   setInputNumber: (num: string) => void;
   result: PhoneLookupResult;
-  onSwitchTab?: (tab: 'lookup' | 'live_gps' | 'batch' | 'plan' | 'python' | 'guide') => void;
+  /** When false (free-tier exhausted), skip remote geocode enrichment. */
+  enrichmentAllowed?: boolean;
+  onSwitchTab?: (tab: TabId) => void;
   onOpenGodEye?: (target: { lat: number; lng: number; label: string }) => void;
 }
 
@@ -73,6 +76,7 @@ export const PhoneLookupView: React.FC<PhoneLookupViewProps> = ({
   inputNumber,
   setInputNumber,
   result,
+  enrichmentAllowed = true,
   onSwitchTab,
   onOpenGodEye,
 }) => {
@@ -237,6 +241,12 @@ export const PhoneLookupView: React.FC<PhoneLookupViewProps> = ({
       return () => { isCancelled = true; };
     }
 
+    // Freemium: skip remote enrichment when the daily free quota is exhausted.
+    if (!enrichmentAllowed) {
+      setIsGeocoding(false);
+      return () => { isCancelled = true; };
+    }
+
     setIsGeocoding(true);
 
     geocodeWithOpenCage(
@@ -255,7 +265,7 @@ export const PhoneLookupView: React.FC<PhoneLookupViewProps> = ({
     return () => {
       isCancelled = true;
     };
-  }, [result.regionOrCity, result.countryName, openCageKey, result.coordinates.lat, result.coordinates.lng, cityOverride]);
+  }, [result.regionOrCity, result.countryName, openCageKey, result.coordinates.lat, result.coordinates.lng, cityOverride, enrichmentAllowed]);
 
   // True when the result is only the whole country (a mobile number with no city)
   const countryOnly =
@@ -517,7 +527,7 @@ export const PhoneLookupView: React.FC<PhoneLookupViewProps> = ({
                   ) : (
                     <Crosshair className="w-4 h-4 text-cyan-400" />
                   )}
-                  <span>{isLocatingDevice ? 'Acquiring GPS...' : 'Track Real GPS'}</span>
+                  <span>{isLocatingDevice ? 'Getting this device…' : 'Locate this device'}</span>
                 </button>
 
               </>

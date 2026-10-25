@@ -41,3 +41,10 @@ create policy "Users read own monitoring runs" on public.monitoring_runs for sel
 create or replace function public.set_investigation_target_updated_at() returns trigger language plpgsql set search_path='' as $$ begin new.updated_at=now(); return new; end; $$;
 drop trigger if exists set_investigation_target_updated_at on public.investigation_targets;
 create trigger set_investigation_target_updated_at before update on public.investigation_targets for each row execute function public.set_investigation_target_updated_at();
+
+-- Edge worker uses the service role (bypasses RLS) to write run history and advance schedules.
+grant select, insert, update on public.investigation_targets to service_role;
+grant select, insert on public.monitoring_runs to service_role;
+
+-- Ensure PostgREST picks up the new relations immediately after this migration.
+notify pgrst, 'reload schema';

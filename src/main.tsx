@@ -10,7 +10,16 @@ import './index.css';
 // the initial session check so the right header (Sign in vs Sign out) renders.
 function AuthGate() {
   const {ready} = useAuth();
-  if (!ready) return null;
+  if (!ready) {
+    return (
+      <div className="min-h-screen bg-slate-950 text-slate-100 flex items-center justify-center px-4">
+        <div role="status" className="text-center space-y-3">
+          <div className="mx-auto h-8 w-8 rounded-full border-2 border-cyan-400/30 border-t-cyan-400 animate-spin" aria-hidden="true" />
+          <p className="text-sm text-slate-400">Loading GeoPhone…</p>
+        </div>
+      </div>
+    );
+  }
   return <App />;
 }
 

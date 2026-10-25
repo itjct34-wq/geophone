@@ -1,21 +1,24 @@
-import React from 'react';
-import { Check, Lock } from 'lucide-react';
+import React, { useState } from 'react';
+import { Check, CreditCard, ExternalLink, Lock } from 'lucide-react';
 import { useAuth } from '../auth/AuthContext';
 import { AccessRequestPanel } from './AccessRequestPanel';
+import { FREE_DAILY_LIMITS } from '../services/usageLimits';
+import { getStripeCheckoutConfig, openStripeCheckout } from '../services/stripeCheckout';
 
 const FREE_FEATURES = [
-  'Number lookup: carrier, country, line type and validity',
-  'IP and network lookup',
+  `Number lookup: carrier, country, line type and validity (up to ${FREE_DAILY_LIMITS.phone_lookup}/day)`,
+  `IP and network lookup (up to ${FREE_DAILY_LIMITS.ip_lookup}/day)`,
   'Username, email and image open-source search',
   'Resource hub',
-  'Lookup history and saved batch lists',
+  'Lookup history and saved batch lists (signed-in)',
 ];
 
 const PAID_FEATURES = [
+  'Unlimited free-tier lookups (no daily caps)',
   'Send consent links by WhatsApp, SMS, Telegram or email',
   'Live and last known location of people who agree to share',
   'Paste a location a person sent you',
-  'Cell tower map and triangulation',
+  'Cell tower map, OpenCelliD / BeaconDB resolve, and triangulation',
   'God Eye 3D satellite globe',
   'Investigations and monitoring of public domain and IP records',
   'Campaign short links and test SMS sending',
@@ -38,6 +41,8 @@ const List: React.FC<{ items: string[]; locked?: boolean }> = ({ items, locked }
 
 export const PlanView: React.FC = () => {
   const { profile, hasPaid, isAdmin } = useAuth();
+  const stripe = getStripeCheckoutConfig();
+  const [stripeNotice, setStripeNotice] = useState('');
 
   const status = isAdmin
     ? 'Admin: everything is unlocked.'
@@ -46,6 +51,15 @@ export const PlanView: React.FC = () => {
     : profile?.plan === 'paid'
     ? 'Your paid period has ended. Request access to renew it.'
     : 'You are on the free plan.';
+
+  const handleStripe = () => {
+    setStripeNotice('');
+    if (openStripeCheckout()) {
+      setStripeNotice('Stripe opened in a new tab. After you pay, request access below so an admin can unlock your account (or wait for webhook fulfilment once configured).');
+      return;
+    }
+    setStripeNotice('Stripe Payment Link is not configured. Use the access request below, or set VITE_STRIPE_PAYMENT_LINK in the environment.');
+  };
 
   return (
     <div className="space-y-6 max-w-3xl">
@@ -72,17 +86,40 @@ export const PlanView: React.FC = () => {
           <div className="space-y-1">
             <h2 className="text-base font-bold text-slate-100">Get paid access</h2>
             <p className="text-sm text-slate-300 leading-relaxed">
-              Send a request and the admin will put a payment link here. Pay it, tap I've paid, and the admin switches
-              your access on once the payment is confirmed.
+              Pay with Stripe when a Payment Link is configured, or send a request so the admin can attach a payment
+              link. After payment is confirmed, paid features unlock on your account.
             </p>
           </div>
-          <AccessRequestPanel />
+
+          <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+            <button
+              type="button"
+              onClick={handleStripe}
+              className="inline-flex items-center justify-center gap-2 h-11 px-5 text-sm font-semibold text-slate-950 bg-cyan-400 hover:bg-cyan-300 rounded-xl transition-colors"
+            >
+              <CreditCard className="w-4 h-4" aria-hidden="true" />
+              <span>{stripe.configured ? 'Pay with Stripe' : 'Stripe checkout (setup needed)'}</span>
+              {stripe.configured && <ExternalLink className="w-3.5 h-3.5" aria-hidden="true" />}
+            </button>
+            <span className="text-xs text-slate-400">{stripe.priceLabel}</span>
+          </div>
+          {stripeNotice && (
+            <p role="status" className="text-sm text-slate-300 leading-relaxed">
+              {stripeNotice}
+            </p>
+          )}
+
+          <div className="border-t border-slate-800 pt-4 space-y-3">
+            <h3 className="text-sm font-semibold text-slate-100">Or request access (manual / affiliate link)</h3>
+            <AccessRequestPanel />
+          </div>
         </section>
       )}
 
       <p className="text-sm text-slate-400 leading-relaxed">
-        Location features only work with a person's agreement. They open your link, see who is asking, and choose what
-        to share. Nothing is collected without their tap.
+        Location features only work with a person&apos;s agreement. They open your link, see who is asking, and choose what
+        to share. Nothing is collected without their tap. Phone lookup uses public numbering metadata (carrier / MCC-MNC),
+        not covert handset tracking.
       </p>
     </div>
   );
