@@ -55,6 +55,12 @@ import {
   lookupCell,
   type PositionEstimate,
 } from '../services/triangulation';
+import {
+  applyManualTowers,
+  parseManualPositions,
+  readManualTowers,
+  writeManualTowers,
+} from '../services/manualTowers';
 
 interface LiveHandsetTrackerViewProps {
   currentNumber: string;
@@ -381,10 +387,12 @@ export const LiveHandsetTrackerView: React.FC<LiveHandsetTrackerViewProps> = ({ 
 
     setUserCells((prev) =>
       applyEstimates(
-        prev.map((c) => {
-          const r = resolved[c.id];
-          return r ? { ...c, lat: r.lat, lng: r.lng, rangeM: r.rangeM, source: r.source, isApproximate: false } : c;
-        }),
+        applyManualTowers(
+          prev.map((c) => {
+            const r = resolved[c.id];
+            return r ? { ...c, lat: r.lat, lng: r.lng, rangeM: r.rangeM, source: r.source, isApproximate: false } : c;
+          }),
+        ),
       ),
     );
 
@@ -415,6 +423,31 @@ export const LiveHandsetTrackerView: React.FC<LiveHandsetTrackerViewProps> = ({ 
     }
     // Unwired Labs allows only a few lookups a day, so it is used for small selections only
     return runResolve(targets, false, triangulationCells.length > 0 && triangulationCells.length <= 5);
+  };
+
+  // Positions the user types in (from a survey, CellMapper, a site visit...)
+  const [manualText, setManualText] = useState('');
+  const [manualMessage, setManualMessage] = useState<{ ok: boolean; text: string } | null>(null);
+
+  const handleAddManual = () => {
+    const parsed = parseManualPositions(manualText, userCells, triangulationCells);
+    if (parsed.matched > 0) {
+      writeManualTowers({ ...readManualTowers(), ...parsed.positions });
+      setUserCells((prev) => applyEstimates(applyManualTowers(prev)));
+      setManualText('');
+    }
+    setManualMessage({
+      ok: parsed.errors.length === 0,
+      text:
+        (parsed.matched > 0 ? `Saved positions for ${parsed.matched} cell(s). ` : '') + parsed.errors.join(' '),
+    });
+  };
+
+  const handleClearManual = () => {
+    writeManualTowers({});
+    // Re-read the cache so database results come back, then drop the typed positions
+    setUserCells(applyEstimates(parseRawCellsJson(RAW_USER_CELLS_STRING)));
+    setManualMessage({ ok: true, text: 'Typed positions removed. Press Resolve to look the towers up again.' });
   };
 
   // Automatically resolve every tower once when this view opens
@@ -1057,6 +1090,47 @@ print("[✓] Generated cells_survey_map.html with your cellular dump!")
             {resolveMessage && (
               <p role="status" className="text-[11px] text-slate-300">{resolveMessage}</p>
             )}
+
+            <details className="border border-slate-800 rounded-lg bg-slate-900/60">
+              <summary className="cursor-pointer select-none px-3 py-2 text-slate-200 font-semibold">
+                Add latitude and longitude for towers you know
+              </summary>
+              <div className="px-3 pb-3 space-y-2">
+                <p className="text-[11px] text-slate-400 leading-relaxed">
+                  One tower per line, written as <code className="text-cyan-300">CID, latitude, longitude</code>. Or tick a
+                  single cell in the table and paste just <code className="text-cyan-300">latitude, longitude</code>. Typed
+                  positions are saved in this browser and used first.
+                </p>
+                <textarea
+                  value={manualText}
+                  onChange={(e) => setManualText(e.target.value)}
+                  rows={4}
+                  aria-label="Tower positions"
+                  placeholder={'802818, 34.0151, 71.5249\n7823, 34.0302, 71.5410'}
+                  className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-lg font-mono text-xs text-slate-200 focus:outline-none focus:border-amber-500"
+                />
+                <div className="flex flex-wrap items-center gap-2">
+                  <button
+                    onClick={handleAddManual}
+                    disabled={!manualText.trim()}
+                    className="px-3 py-1.5 bg-amber-500 hover:bg-amber-400 disabled:opacity-50 text-slate-950 font-bold rounded-lg transition-colors"
+                  >
+                    Add positions
+                  </button>
+                  <button
+                    onClick={handleClearManual}
+                    className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg transition-colors"
+                  >
+                    Remove all typed positions
+                  </button>
+                </div>
+                {manualMessage && (
+                  <p role="status" className={`text-[11px] ${manualMessage.ok ? 'text-emerald-300' : 'text-rose-300'}`}>
+                    {manualMessage.text}
+                  </p>
+                )}
+              </div>
+            </details>
 
             {triangulationEstimate ? (
               <div className="p-3 bg-purple-950/30 border border-purple-800/40 rounded-lg text-purple-200 font-mono text-xs">
