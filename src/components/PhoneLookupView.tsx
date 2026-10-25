@@ -41,6 +41,8 @@ import {
 import { LiveTrackingShareModal } from './LiveTrackingShareModal';
 import { LastKnownLocationCard } from './LastKnownLocationCard';
 import { NumberActivityCard } from './NumberActivityCard';
+import { LockedFeature } from './LockedFeature';
+import { useAuth } from '../auth/AuthContext';
 import {
   getLastKnownLocation,
   savePastedLocation,
@@ -55,7 +57,7 @@ interface PhoneLookupViewProps {
   setInputNumber: (num: string) => void;
   result: PhoneLookupResult;
   onExportHtml: () => void;
-  onSwitchTab?: (tab: 'lookup' | 'live_gps' | 'batch' | 'python' | 'guide') => void;
+  onSwitchTab?: (tab: 'lookup' | 'live_gps' | 'batch' | 'plan' | 'python' | 'guide') => void;
   onOpenGodEye?: (target: { lat: number; lng: number; label: string }) => void;
 }
 
@@ -75,6 +77,8 @@ export const PhoneLookupView: React.FC<PhoneLookupViewProps> = ({
   onSwitchTab,
   onOpenGodEye,
 }) => {
+  const { hasPaid, isAdmin } = useAuth();
+
   // Last position the person shared for this number through a consent link
   const [lastKnown, setLastKnown] = useState<LastKnownLocation | null>(null);
   const [lastKnownRefresh, setLastKnownRefresh] = useState(0);
@@ -96,7 +100,7 @@ export const PhoneLookupView: React.FC<PhoneLookupViewProps> = ({
   useEffect(() => {
     setLastKnown(null);
     const e164 = result.e164;
-    if (!result.isValid || !e164) return;
+    if (!result.isValid || !e164 || !hasPaid) return;
     let cancelled = false;
     const load = () =>
       getLastKnownLocation(e164)
@@ -108,7 +112,7 @@ export const PhoneLookupView: React.FC<PhoneLookupViewProps> = ({
       cancelled = true;
       clearInterval(id);
     };
-  }, [result.e164, result.isValid, lastKnownRefresh]);
+  }, [result.e164, result.isValid, hasPaid, lastKnownRefresh]);
 
   const [copiedField, setCopiedField] = useState<string | null>(null);
   const [openCageKey] = useState<string>(USER_DEFAULT_OPENCAGE_KEY);
@@ -334,7 +338,16 @@ export const PhoneLookupView: React.FC<PhoneLookupViewProps> = ({
 
       </div>
 
-      {result.isValid && result.e164 && (
+      {result.isValid && result.e164 && !hasPaid && (
+        <LockedFeature
+          compact
+          title="See where a person is, with their agreement"
+          description="Send a consent link and the person chooses to share their position. Their live and last known location then appear here. This is part of paid access."
+          onOpenPlan={isAdmin ? undefined : () => onSwitchTab?.('plan')}
+        />
+      )}
+
+      {result.isValid && result.e164 && hasPaid && (
         <LastKnownLocationCard
           number={result.e164}
           location={lastKnown}

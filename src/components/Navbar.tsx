@@ -1,140 +1,119 @@
 import React from 'react';
-import { Radio, Download, Terminal, Crosshair, LogOut } from 'lucide-react';
+import { Radio, Lock, LogOut } from 'lucide-react';
 import { useAuth } from '../auth/AuthContext';
 
-export type TabId = 'lookup' | 'live_gps' | 'batch' | 'ip' | 'god_eye' | 'history' | 'python' | 'guide';
+export type TabId =
+  | 'lookup'
+  | 'live_gps'
+  | 'batch'
+  | 'ip'
+  | 'god_eye'
+  | 'history'
+  | 'plan'
+  | 'admin'
+  | 'python'
+  | 'guide';
 
 interface NavbarProps {
   activeTab: TabId;
   setActiveTab: (tab: TabId) => void;
 }
 
-export const Navbar: React.FC<NavbarProps> = ({
-  activeTab,
-  setActiveTab,
-}) => {
-  const { user, signOut } = useAuth();
+interface TabDef {
+  id: TabId;
+  label: string;
+  /** Needs paid access; shown with a lock while the customer is on the free plan. */
+  paid?: boolean;
+}
+
+export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab }) => {
+  const { user, isAdmin, hasPaid, signOut } = useAuth();
+
+  const tabs: TabDef[] = [
+    { id: 'lookup', label: 'Single Lookup' },
+    { id: 'live_gps', label: 'Live GPS & Towers', paid: true },
+    { id: 'batch', label: 'Batch Analysis' },
+    { id: 'ip', label: 'IP & Network' },
+    { id: 'god_eye', label: 'God Eye', paid: true },
+    { id: 'history', label: 'History' },
+    isAdmin ? { id: 'admin', label: 'Customers' } : { id: 'plan', label: 'Plan' },
+  ];
+
+  const content = (t: TabDef) => (
+    <>
+      {t.label}
+      {t.paid && !hasPaid && (
+        <Lock className="w-3 h-3 ml-1.5 inline-block align-[-1px] text-slate-400" aria-label="Paid feature" />
+      )}
+    </>
+  );
+
   return (
     <div className="sticky top-0 z-50 bg-slate-950/80 backdrop-blur-md border-b border-slate-800">
-    <header className="flex items-center justify-between gap-4 lg:gap-8 px-4 sm:px-6 py-3 lg:py-4">
-      {/* Zone 1: Single text element wordmark */}
-      <div 
-        onClick={() => setActiveTab('lookup')}
-        className="flex items-center gap-2 cursor-pointer select-none shrink-0"
-      >
-        <div className="w-8 h-8 rounded-lg bg-cyan-500/10 border border-cyan-500/30 flex items-center justify-center text-cyan-400">
-          <Radio className="w-4 h-4" />
-        </div>
-        <span className="text-base font-bold tracking-tight text-slate-100 whitespace-nowrap shrink-0">
-          GeoPhone Intelligence
-        </span>
-      </div>
-
-      {/* Zone 2: 4â€“5 clean single-line text navigation links */}
-      <nav className="hidden lg:flex items-center gap-6 text-sm font-medium text-slate-400">
+      <header className="flex items-center justify-between gap-4 lg:gap-8 px-4 sm:px-6 py-3 lg:py-4">
         <button
           onClick={() => setActiveTab('lookup')}
-          className={`transition-colors whitespace-nowrap shrink-0 pb-1 border-b-2 ${
-            activeTab === 'lookup'
-              ? 'text-cyan-400 border-cyan-400 font-semibold'
-              : 'border-transparent hover:text-slate-200'
-          }`}
+          className="flex items-center gap-2 select-none shrink-0"
+          aria-label="GeoPhone, go to Single Lookup"
         >
-          Single Lookup
+          <div className="w-8 h-8 rounded-lg bg-cyan-500/10 border border-cyan-500/30 flex items-center justify-center text-cyan-400">
+            <Radio className="w-4 h-4" aria-hidden="true" />
+          </div>
+          <span className="text-base font-bold tracking-tight text-slate-100 whitespace-nowrap shrink-0">
+            GeoPhone Intelligence
+          </span>
         </button>
-        <button
-          onClick={() => setActiveTab('live_gps')}
-          className={`transition-colors whitespace-nowrap shrink-0 pb-1 border-b-2 ${
-            activeTab === 'live_gps'
-              ? 'text-emerald-400 border-emerald-400 font-semibold'
-              : 'border-transparent hover:text-slate-200'
-          }`}
-        >
-          Live GPS & Towers
-        </button>
-        <button
-          onClick={() => setActiveTab('batch')}
-          className={`transition-colors whitespace-nowrap shrink-0 pb-1 border-b-2 ${
-            activeTab === 'batch'
-              ? 'text-cyan-400 border-cyan-400 font-semibold'
-              : 'border-transparent hover:text-slate-200'
-          }`}
-        >
-          Batch Analysis
-        </button>
-        <button
-          onClick={() => setActiveTab('ip')}
-          className={`transition-colors whitespace-nowrap shrink-0 pb-1 border-b-2 ${
-            activeTab === 'ip'
-              ? 'text-cyan-400 border-cyan-400 font-semibold'
-              : 'border-transparent hover:text-slate-200'
-          }`}
-        >
-          IP & Network
-        </button>
-        <button
-          onClick={() => setActiveTab('god_eye')}
-          className={`transition-colors whitespace-nowrap shrink-0 pb-1 border-b-2 ${
-            activeTab === 'god_eye'
-              ? 'text-cyan-400 border-cyan-400 font-semibold'
-              : 'border-transparent hover:text-slate-200'
-          }`}
-        >
-          God Eye
-        </button>
-        <button
-          onClick={() => setActiveTab('history')}
-          className={`transition-colors whitespace-nowrap shrink-0 pb-1 border-b-2 ${
-            activeTab === 'history'
-              ? 'text-cyan-400 border-cyan-400 font-semibold'
-              : 'border-transparent hover:text-slate-200'
-          }`}
-        >
-          History
-        </button>
+
+        <nav aria-label="Sections" className="hidden lg:flex items-center gap-6 text-sm font-medium text-slate-300">
+          {tabs.map((t) => (
+            <button
+              key={t.id}
+              onClick={() => setActiveTab(t.id)}
+              aria-current={activeTab === t.id ? 'page' : undefined}
+              className={`transition-colors whitespace-nowrap shrink-0 pb-1 border-b-2 ${
+                activeTab === t.id
+                  ? 'text-cyan-400 border-cyan-400 font-semibold'
+                  : 'border-transparent hover:text-slate-100'
+              }`}
+            >
+              {content(t)}
+            </button>
+          ))}
+        </nav>
+
+        <div className="flex items-center gap-3 shrink-0">
+          <button
+            onClick={signOut}
+            title={`Signed in as ${user?.email}`}
+            className="flex items-center gap-2 px-3 h-10 text-sm font-medium text-slate-300 hover:text-slate-100 border border-slate-700 rounded-lg transition-colors whitespace-nowrap shrink-0"
+          >
+            <LogOut className="w-4 h-4" aria-hidden="true" />
+            <span className="hidden sm:inline">Sign out</span>
+            <span className="sm:hidden sr-only">Sign out</span>
+          </button>
+        </div>
+      </header>
+
+      {/* Mobile navigation (the desktop links above are hidden below lg) */}
+      <nav
+        aria-label="Sections"
+        className="lg:hidden flex items-center gap-5 px-4 sm:px-6 overflow-x-auto text-sm font-medium text-slate-300 border-t border-slate-800/60"
+      >
+        {tabs.map((t) => (
+          <button
+            key={t.id}
+            onClick={() => setActiveTab(t.id)}
+            aria-current={activeTab === t.id ? 'page' : undefined}
+            className={`py-3 whitespace-nowrap shrink-0 border-b-2 transition-colors ${
+              activeTab === t.id
+                ? 'text-cyan-400 border-cyan-400 font-semibold'
+                : 'border-transparent hover:text-slate-100'
+            }`}
+          >
+            {content(t)}
+          </button>
+        ))}
       </nav>
-
-      {/* Zone 3: 1 primary action */}
-      <div className="flex items-center gap-3 shrink-0">
-        <button
-          onClick={signOut}
-          title={`Signed in as ${user?.email}`}
-          className="flex items-center gap-2 px-3 py-2 text-xs font-medium text-slate-400 hover:text-slate-100 border border-slate-800 rounded-lg transition-colors whitespace-nowrap shrink-0"
-        >
-          <LogOut className="w-3.5 h-3.5" />
-          <span className="hidden sm:inline">Sign out</span>
-        </button>
-      </div>
-    </header>
-
-    {/* Mobile navigation (the desktop links above are hidden below md) */}
-    <nav
-      aria-label="Sections"
-      className="lg:hidden flex items-center gap-5 px-4 sm:px-6 overflow-x-auto text-sm font-medium text-slate-400 border-t border-slate-800/60"
-    >
-      {([
-        ['lookup', 'Single Lookup'],
-        ['live_gps', 'Live GPS & Towers'],
-        ['batch', 'Batch Analysis'],
-        ['ip', 'IP & Network'],
-        ['god_eye', 'God Eye'],
-        ['history', 'History'],
-      ] as const).map(([tab, label]) => (
-        <button
-          key={tab}
-          onClick={() => setActiveTab(tab)}
-          aria-current={activeTab === tab ? 'page' : undefined}
-          className={`py-2.5 whitespace-nowrap shrink-0 border-b-2 transition-colors ${
-            activeTab === tab
-              ? 'text-cyan-400 border-cyan-400 font-semibold'
-              : 'border-transparent hover:text-slate-200'
-          }`}
-        >
-          {label}
-        </button>
-      ))}
-    </nav>
     </div>
   );
 };
-

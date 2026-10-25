@@ -1,9 +1,9 @@
-﻿import React, { useState } from 'react';
+import React, { useState } from 'react';
 import { Radio, Lock, User, Loader2 } from 'lucide-react';
 import { useAuth } from '../auth/AuthContext';
 
 export const LoginPage: React.FC = () => {
-  const { signIn, signUp } = useAuth();
+  const { signIn, signUp, notice: accountNotice } = useAuth();
   const [mode, setMode] = useState<'signin' | 'signup'>('signin');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -85,6 +85,10 @@ export const LoginPage: React.FC = () => {
               />
             </div>
           </label>
+
+          {accountNotice && (
+            <p role="alert" className="text-sm text-amber-300">{accountNotice}</p>
+          )}
 
           {notice && (
             <p role="status" className="text-xs text-emerald-400">{notice}</p>

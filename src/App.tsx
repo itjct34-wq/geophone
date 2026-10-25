@@ -11,6 +11,10 @@ import { addHistory } from './services/dataService';
 import { PhoneLookupView } from './components/PhoneLookupView';
 import { LiveHandsetTrackerView } from './components/LiveHandsetTrackerView';
 import { BatchTrackerView } from './components/BatchTrackerView';
+import { PlanView } from './components/PlanView';
+import { AdminView } from './components/AdminView';
+import { LockedFeature } from './components/LockedFeature';
+import { useAuth } from './auth/AuthContext';
 const GodEyeView = lazy(() => import('./components/GodEyeView').then((m) => ({ default: m.GodEyeView })));
 import { parsePhoneNumber } from './services/phoneParser';
 import { generateFoliumHtml } from './services/pythonScriptGenerator';
@@ -18,6 +22,7 @@ import { generateFoliumHtml } from './services/pythonScriptGenerator';
 export default function App() {
   const [activeTab, setActiveTab] = useState<TabId>('lookup');
   const [inputNumber, setInputNumber] = useState('');
+  const { isAdmin, hasPaid } = useAuth();
 
   // Compute parsed phone intelligence
   const phoneResult = useMemo(() => {
@@ -105,9 +110,15 @@ export default function App() {
           />
         )}
 
-        {activeTab === 'live_gps' && (
-          <LiveHandsetTrackerView currentNumber={inputNumber} />
-        )}
+        {activeTab === 'live_gps' &&
+          (hasPaid ? (
+            <LiveHandsetTrackerView currentNumber={inputNumber} />
+          ) : (
+            <LockedFeature
+              title="Live GPS and towers are part of paid access"
+              description="Send a consent link to see where a person is when they agree to share, with live updates and their last known position. Also includes the cell tower map and triangulation."
+            />
+          ))}
 
         {activeTab === 'batch' && (
           <BatchTrackerView onSelectNumber={handleSelectBatchNumber} />
@@ -122,13 +133,23 @@ export default function App() {
           />
         )}
 
-        {activeTab === 'god_eye' && (
-          <Suspense fallback={<p className="text-xs text-slate-400 p-6">Loading globe...</p>}>
-            <GodEyeView target={globeOverride ?? godEyeTarget} />
-          </Suspense>
-        )}
+        {activeTab === 'god_eye' &&
+          (hasPaid ? (
+            <Suspense fallback={<p className="text-sm text-slate-400 p-6">Loading globe...</p>}>
+              <GodEyeView target={globeOverride ?? godEyeTarget} />
+            </Suspense>
+          ) : (
+            <LockedFeature
+              title="The God Eye globe is part of paid access"
+              description="A 3D satellite globe that flies to the places you look up, with terrain, labels and orbit."
+            />
+          ))}
 
         {activeTab === 'history' && <HistoryView onSelectNumber={handleSelectBatchNumber} />}
+
+        {activeTab === 'plan' && !isAdmin && <PlanView />}
+
+        {activeTab === 'admin' && isAdmin && <AdminView />}
       </main>
 
       {/* Footer */}
