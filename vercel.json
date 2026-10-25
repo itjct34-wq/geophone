@@ -1,4 +1,15 @@
 {
+  "functions": {
+    "api/sherlock.ts": { "maxDuration": 30 },
+    "api/holehe.ts": { "maxDuration": 25 },
+    "api/phone-scan.ts": { "maxDuration": 20 },
+    "api/caller-check.ts": { "maxDuration": 20 },
+    "api/osint.ts": { "maxDuration": 25 },
+    "api/shodan.ts": { "maxDuration": 20 },
+    "api/public-api.ts": { "maxDuration": 20 },
+    "api/ai-brief.ts": { "maxDuration": 30 },
+    "api/v1/intel.ts": { "maxDuration": 30 }
+  },
   "rewrites": [
     {
       "source": "/s/:code",

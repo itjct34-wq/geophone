@@ -2,6 +2,10 @@
  * Client for in-app Holehe-style email account checks.
  */
 
+import { fetchWithTimeout } from '../lib/fetchWithTimeout';
+
+const HOLEHE_CLIENT_MS = 28_000;
+
 export interface HoleheHit {
   name: string;
   domain: string;
@@ -22,12 +26,14 @@ export interface HoleheReport {
   error?: string;
 }
 
-export async function runHoleheCheck(email: string): Promise<HoleheReport> {
+export async function runHoleheCheck(email: string, signal?: AbortSignal): Promise<HoleheReport> {
   const trimmed = email.trim().toLowerCase();
   try {
-    const response = await fetch(`/api/holehe?email=${encodeURIComponent(trimmed)}`, {
-      headers: { Accept: 'application/json' },
-    });
+    const response = await fetchWithTimeout(
+      `/api/holehe?email=${encodeURIComponent(trimmed)}`,
+      { headers: { Accept: 'application/json' }, signal },
+      HOLEHE_CLIENT_MS,
+    );
     const body = (await response.json().catch(() => null)) as HoleheReport | null;
     if (!body) {
       return {

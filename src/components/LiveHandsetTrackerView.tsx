@@ -374,6 +374,14 @@ export const LiveHandsetTrackerView: React.FC<LiveHandsetTrackerViewProps> = ({ 
     let failure: string | null = null;
     let next = 0;
     let done = 0;
+    let lastProgressAt = 0;
+    // Throttle React progress updates — per-cell setState froze the UI on large dumps.
+    const bumpProgress = (force = false) => {
+      const now = Date.now();
+      if (!force && now - lastProgressAt < 200) return;
+      lastProgressAt = now;
+      setResolveProgress({ done, total: toFetch.length });
+    };
     const worker = async () => {
       while (next < toFetch.length && !failure) {
         const c = toFetch[next++];
@@ -388,10 +396,11 @@ export const LiveHandsetTrackerView: React.FC<LiveHandsetTrackerViewProps> = ({ 
           failure = err instanceof Error ? err.message : 'Tower lookup failed.';
         }
         done += 1;
-        setResolveProgress({ done, total: toFetch.length });
+        bumpProgress();
       }
     };
     await Promise.all([worker(), worker(), worker(), worker()]);
+    bumpProgress(true);
     writeCellCache(cache);
 
     setUserCells((prev) =>

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import {
   AtSign,
   Loader2,
@@ -51,19 +51,30 @@ export const HoleheCheckView: React.FC = () => {
   const [busy, setBusy] = useState(false);
   const [report, setReport] = useState<HoleheReport | null>(null);
   const [filter, setFilter] = useState<'all' | 'found' | 'not_found' | 'other'>('all');
+  const abortRef = useRef<AbortController | null>(null);
 
   const valid = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email.trim());
+
+  const cancel = () => {
+    abortRef.current?.abort();
+    setBusy(false);
+  };
 
   const run = async (event?: React.FormEvent) => {
     event?.preventDefault();
     if (!valid) return;
+    abortRef.current?.abort();
+    const controller = new AbortController();
+    abortRef.current = controller;
     setBusy(true);
     try {
-      const next = await runHoleheCheck(email.trim());
-      setReport(next);
-      setFilter('all');
+      const next = await runHoleheCheck(email.trim(), controller.signal);
+      if (!controller.signal.aborted) {
+        setReport(next);
+        setFilter('all');
+      }
     } finally {
-      setBusy(false);
+      if (abortRef.current === controller) setBusy(false);
     }
   };
 
@@ -117,9 +128,18 @@ export const HoleheCheckView: React.FC = () => {
             {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <AtSign className="h-4 w-4" />}
             Run Holehe check
           </button>
+          {busy && (
+            <button
+              type="button"
+              onClick={cancel}
+              className="h-10 px-4 text-sm text-amber-200 border border-amber-800/60 rounded-xl hover:bg-amber-950/40"
+            >
+              Cancel
+            </button>
+          )}
           <span className="text-xs text-slate-500 inline-flex items-center gap-1.5">
             <ShieldCheck className="h-3.5 w-3.5 text-emerald-400" />
-            Public endpoints · results stay in GeoPhone
+            Public endpoints · 28s client timeout · concurrency capped
           </span>
         </div>
       </form>

@@ -2,6 +2,10 @@
  * Client for official Shodan lookups via /api/shodan (server-held SHODAN_API_KEY).
  */
 
+import { fetchWithTimeout } from '../lib/fetchWithTimeout';
+
+const SHODAN_CLIENT_MS = 20_000;
+
 export interface ShodanHostData {
   ip_str?: string;
   org?: string;
@@ -55,35 +59,74 @@ export function vulnList(host: ShodanHostData | null | undefined): string[] {
   return Object.keys(host.vulns);
 }
 
-export async function lookupShodanIp(ip: string): Promise<ShodanLookupResponse> {
-  const response = await fetch(`/api/shodan?ip=${encodeURIComponent(ip)}`, {
-    headers: { Accept: 'application/json' },
-  });
-  const body = (await response.json().catch(() => null)) as ShodanLookupResponse | null;
-  if (!body) {
-    return { configured: false, error: `Shodan proxy failed (HTTP ${response.status}).`, host: null };
+export async function lookupShodanIp(
+  ip: string,
+  signal?: AbortSignal,
+): Promise<ShodanLookupResponse> {
+  try {
+    const response = await fetchWithTimeout(
+      `/api/shodan?ip=${encodeURIComponent(ip)}`,
+      { headers: { Accept: 'application/json' }, signal },
+      SHODAN_CLIENT_MS,
+    );
+    const body = (await response.json().catch(() => null)) as ShodanLookupResponse | null;
+    if (!body) {
+      return { configured: false, error: `Shodan proxy failed (HTTP ${response.status}).`, host: null };
+    }
+    return body;
+  } catch (err) {
+    return {
+      configured: false,
+      error: err instanceof Error ? err.message : 'Shodan request failed.',
+      host: null,
+    };
   }
-  return body;
 }
 
-export async function lookupShodanHost(hostname: string): Promise<ShodanLookupResponse> {
-  const response = await fetch(`/api/shodan?host=${encodeURIComponent(hostname)}`, {
-    headers: { Accept: 'application/json' },
-  });
-  const body = (await response.json().catch(() => null)) as ShodanLookupResponse | null;
-  if (!body) {
-    return { configured: false, error: `Shodan proxy failed (HTTP ${response.status}).`, host: null };
+export async function lookupShodanHost(
+  hostname: string,
+  signal?: AbortSignal,
+): Promise<ShodanLookupResponse> {
+  try {
+    const response = await fetchWithTimeout(
+      `/api/shodan?host=${encodeURIComponent(hostname)}`,
+      { headers: { Accept: 'application/json' }, signal },
+      SHODAN_CLIENT_MS,
+    );
+    const body = (await response.json().catch(() => null)) as ShodanLookupResponse | null;
+    if (!body) {
+      return { configured: false, error: `Shodan proxy failed (HTTP ${response.status}).`, host: null };
+    }
+    return body;
+  } catch (err) {
+    return {
+      configured: false,
+      error: err instanceof Error ? err.message : 'Shodan request failed.',
+      host: null,
+    };
   }
-  return body;
 }
 
-export async function searchShodan(query: string): Promise<ShodanLookupResponse> {
-  const response = await fetch(`/api/shodan?q=${encodeURIComponent(query)}&mode=search`, {
-    headers: { Accept: 'application/json' },
-  });
-  const body = (await response.json().catch(() => null)) as ShodanLookupResponse | null;
-  if (!body) {
-    return { configured: false, error: `Shodan proxy failed (HTTP ${response.status}).`, search: null };
+export async function searchShodan(
+  query: string,
+  signal?: AbortSignal,
+): Promise<ShodanLookupResponse> {
+  try {
+    const response = await fetchWithTimeout(
+      `/api/shodan?q=${encodeURIComponent(query)}&mode=search`,
+      { headers: { Accept: 'application/json' }, signal },
+      SHODAN_CLIENT_MS,
+    );
+    const body = (await response.json().catch(() => null)) as ShodanLookupResponse | null;
+    if (!body) {
+      return { configured: false, error: `Shodan proxy failed (HTTP ${response.status}).`, search: null };
+    }
+    return body;
+  } catch (err) {
+    return {
+      configured: false,
+      error: err instanceof Error ? err.message : 'Shodan request failed.',
+      search: null,
+    };
   }
-  return body;
 }

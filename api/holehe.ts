@@ -6,6 +6,7 @@
 
 import { createHash } from 'crypto';
 import { HOLEHE_ACTIVE_MODULES, type HoleheModuleDef } from '../src/data/holeheModules';
+import { mapPool } from './_lib/mapPool';
 
 interface Req {
   query: Record<string, string | string[] | undefined>;
@@ -15,7 +16,8 @@ interface Res {
   status: (code: number) => { json: (body: unknown) => void };
 }
 
-const TIMEOUT_MS = 5000;
+const TIMEOUT_MS = 4000;
+const MODULE_CONCURRENCY = 5;
 const UA = 'GeoPhoneHolehe/1.0 (+https://github.com/megadose/holehe; educational OSINT)';
 
 const first = (v: string | string[] | undefined) => (Array.isArray(v) ? v[0] : v) ?? '';
@@ -197,7 +199,8 @@ export default async function handler(req: Req, res: Res) {
     return;
   }
 
-  const results = await Promise.all(HOLEHE_ACTIVE_MODULES.map((m) => runModule(m, email)));
+  // Bounded concurrency — unbounded Promise.all saturated sockets and froze scans.
+  const results = await mapPool(HOLEHE_ACTIVE_MODULES, MODULE_CONCURRENCY, (m) => runModule(m, email));
   const found = results.filter((r) => r.exists === true).length;
   const notFound = results.filter((r) => r.exists === false).length;
   const unknown = results.filter((r) => r.exists !== true && r.exists !== false).length;

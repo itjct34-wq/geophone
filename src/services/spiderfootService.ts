@@ -104,10 +104,11 @@ function detectTargetType(raw: string): SpiderFootTargetType {
 
 async function fetchDns(domain: string): Promise<{ mx?: string[]; a?: string[]; txt?: string[]; error?: string }> {
   try {
+    const dnsTimeout = AbortSignal.timeout(8000);
     const [mxRes, aRes, txtRes] = await Promise.all([
-      fetch(`https://dns.google/resolve?name=${encodeURIComponent(domain)}&type=MX`),
-      fetch(`https://dns.google/resolve?name=${encodeURIComponent(domain)}&type=A`),
-      fetch(`https://dns.google/resolve?name=${encodeURIComponent(domain)}&type=TXT`),
+      fetch(`https://dns.google/resolve?name=${encodeURIComponent(domain)}&type=MX`, { signal: dnsTimeout }),
+      fetch(`https://dns.google/resolve?name=${encodeURIComponent(domain)}&type=A`, { signal: dnsTimeout }),
+      fetch(`https://dns.google/resolve?name=${encodeURIComponent(domain)}&type=TXT`, { signal: dnsTimeout }),
     ]);
     const mx = (await mxRes.json()) as { Answer?: Array<{ data?: string }> };
     const a = (await aRes.json()) as { Answer?: Array<{ data?: string }> };

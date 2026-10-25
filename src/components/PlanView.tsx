@@ -6,22 +6,29 @@ import { FREE_DAILY_LIMITS } from '../services/usageLimits';
 import { getStripeCheckoutConfig, openStripeCheckout } from '../services/stripeCheckout';
 
 const FREE_FEATURES = [
-  `Number lookup: carrier, country, line type and validity (up to ${FREE_DAILY_LIMITS.phone_lookup}/day)`,
-  `IP and network lookup (up to ${FREE_DAILY_LIMITS.ip_lookup}/day)`,
-  'Username, email and image open-source search',
-  'Resource hub',
-  'Lookup history and saved batch lists (signed-in)',
+  `Search resources: up to ${FREE_DAILY_LIMITS.phone_lookup} phone + ${FREE_DAILY_LIMITS.ip_lookup} IP lookups/day`,
+  'Core OSINT modules (Sherlock / Holehe / DNS subset)',
+  'Public API: 100 requests / month',
+  '1 consent link concept (paid map unlock required for live share)',
+  'Resource hub + history (signed-in)',
 ];
 
-const PAID_FEATURES = [
-  'Unlimited free-tier lookups (no daily caps)',
-  'Send consent links by WhatsApp, SMS, Telegram or email',
-  'Live and last known location of people who agree to share',
-  'Paste a location a person sent you',
-  'Cell tower map, OpenCelliD / BeaconDB resolve, and triangulation',
-  'God Eye 3D satellite globe',
-  'Investigations and monitoring of public domain and IP records',
-  'Campaign short links and test SMS sending',
+const PRO_FEATURES = [
+  'Unlimited Search all resources (no daily caps)',
+  'AI brief via Groq / Ollama',
+  'All scanners + export-friendly results',
+  'Consent links, live map, towers / triangulation',
+  'Public API: 5,000 requests / month',
+  'Suggested price: $19 / month',
+];
+
+const BUSINESS_FEATURES = [
+  'Everything in Pro',
+  'Team seats + higher API quota (50,000 / month)',
+  'Campaign short links + test SMS',
+  'Investigations / monitoring',
+  'Priority support / white-label link notes',
+  'Suggested price: $79 / month',
 ];
 
 const List: React.FC<{ items: string[]; locked?: boolean }> = ({ items, locked }) => (
@@ -47,37 +54,52 @@ export const PlanView: React.FC = () => {
   const status = isAdmin
     ? 'Admin: everything is unlocked.'
     : hasPaid && profile?.paid_until
-    ? `Paid access until ${new Date(profile.paid_until).toLocaleDateString(undefined, { day: 'numeric', month: 'long', year: 'numeric' })}.`
-    : profile?.plan === 'paid'
-    ? 'Your paid period has ended. Request access to renew it.'
-    : 'You are on the free plan.';
+      ? `Paid access until ${new Date(profile.paid_until).toLocaleDateString(undefined, {
+          day: 'numeric',
+          month: 'long',
+          year: 'numeric',
+        })}.`
+      : profile?.plan === 'paid'
+        ? 'Your paid period has ended. Request access to renew it.'
+        : 'You are on the free plan.';
 
   const handleStripe = () => {
     setStripeNotice('');
     if (openStripeCheckout()) {
-      setStripeNotice('Stripe opened in a new tab. After you pay, request access below so an admin can unlock your account (or wait for webhook fulfilment once configured).');
+      setStripeNotice(
+        'Stripe opened in a new tab. After you pay, request access below so an admin can unlock your account (or wait for webhook fulfilment once configured).',
+      );
       return;
     }
-    setStripeNotice('Stripe Payment Link is not configured. Use the access request below, or set VITE_STRIPE_PAYMENT_LINK in the environment.');
+    setStripeNotice(
+      'Payment gateway not configured yet. Set VITE_STRIPE_PAYMENT_LINK (or STRIPE_* server keys) — see docs/MONETIZATION.md. You can still request access below.',
+    );
   };
 
   return (
-    <div className="space-y-6 max-w-3xl">
+    <div className="space-y-6 max-w-4xl">
       <div className="space-y-1">
-        <h1 className="text-xl font-bold tracking-tight text-slate-100">Your plan</h1>
+        <h1 className="text-xl font-bold tracking-tight text-slate-100">Plans & pricing</h1>
         <p role="status" className={`text-sm ${hasPaid ? 'text-emerald-300' : 'text-slate-300'}`}>
           {status}
         </p>
+        <p className="text-xs text-slate-500">
+          Freemium SaaS: earn via Pro/Business + API quotas. You connect Stripe when ready.
+        </p>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <section className="bg-slate-900 border border-slate-800 rounded-xl p-5 space-y-3">
-          <h2 className="text-base font-bold text-slate-100">Free</h2>
+          <h2 className="text-base font-bold text-slate-100">Free · $0</h2>
           <List items={FREE_FEATURES} />
         </section>
+        <section className="bg-slate-900 border border-cyan-800/40 rounded-xl p-5 space-y-3 ring-1 ring-cyan-500/20">
+          <h2 className="text-base font-bold text-slate-100">Pro · $19/mo</h2>
+          <List items={PRO_FEATURES} locked={!hasPaid} />
+        </section>
         <section className="bg-slate-900 border border-slate-800 rounded-xl p-5 space-y-3">
-          <h2 className="text-base font-bold text-slate-100">Paid</h2>
-          <List items={PAID_FEATURES} locked={!hasPaid} />
+          <h2 className="text-base font-bold text-slate-100">Business · $79/mo</h2>
+          <List items={BUSINESS_FEATURES} locked={!hasPaid} />
         </section>
       </div>
 
@@ -86,8 +108,8 @@ export const PlanView: React.FC = () => {
           <div className="space-y-1">
             <h2 className="text-base font-bold text-slate-100">Get paid access</h2>
             <p className="text-sm text-slate-300 leading-relaxed">
-              Pay with Stripe when a Payment Link is configured, or send a request so the admin can attach a payment
-              link. After payment is confirmed, paid features unlock on your account.
+              Pay with Stripe when a Payment Link is configured, or send a request so the admin can attach a
+              payment link. After payment is confirmed, Pro features unlock on your account.
             </p>
           </div>
 
@@ -98,29 +120,27 @@ export const PlanView: React.FC = () => {
               className="inline-flex items-center justify-center gap-2 h-11 px-5 text-sm font-semibold text-slate-950 bg-cyan-400 hover:bg-cyan-300 rounded-xl transition-colors"
             >
               <CreditCard className="w-4 h-4" aria-hidden="true" />
-              <span>{stripe.configured ? 'Pay with Stripe' : 'Stripe checkout (setup needed)'}</span>
-              {stripe.configured && <ExternalLink className="w-3.5 h-3.5" aria-hidden="true" />}
+              {stripe.configured ? `Pay with Stripe — ${stripe.priceLabel}` : 'Configure Stripe / pay later'}
             </button>
-            <span className="text-xs text-slate-400">{stripe.priceLabel}</span>
+            {stripe.configured && (
+              <a
+                href={stripe.paymentLink!}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1 text-sm text-cyan-300 hover:underline"
+              >
+                Open link <ExternalLink className="w-3.5 h-3.5" />
+              </a>
+            )}
           </div>
           {stripeNotice && (
-            <p role="status" className="text-sm text-slate-300 leading-relaxed">
+            <p role="status" className="text-sm text-slate-300">
               {stripeNotice}
             </p>
           )}
-
-          <div className="border-t border-slate-800 pt-4 space-y-3">
-            <h3 className="text-sm font-semibold text-slate-100">Or request access (manual / affiliate link)</h3>
-            <AccessRequestPanel />
-          </div>
+          <AccessRequestPanel />
         </section>
       )}
-
-      <p className="text-sm text-slate-400 leading-relaxed">
-        Location features only work with a person&apos;s agreement. They open your link, see who is asking, and choose what
-        to share. Nothing is collected without their tap. Phone lookup uses public numbering metadata (carrier / MCC-MNC),
-        not covert handset tracking.
-      </p>
     </div>
   );
 };

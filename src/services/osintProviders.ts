@@ -2,6 +2,10 @@
  * Client for /api/osint multi-provider gateway (server keys + Postgres cache).
  */
 
+import { fetchWithTimeout } from '../lib/fetchWithTimeout';
+
+const OSINT_CLIENT_MS = 20_000;
+
 export type OsintProviderId =
   | 'ipapi'
   | 'abuseipdb'
@@ -33,17 +37,22 @@ export async function callOsintProvider(
   if (extras?.kind) params.set('kind', extras.kind);
   if (extras?.mode) params.set('mode', extras.mode);
   try {
-    const response = await fetch(`/api/osint?${params.toString()}`, {
-      headers: { Accept: 'application/json' },
-    });
+    const response = await fetchWithTimeout(
+      `/api/osint?${params.toString()}`,
+      { headers: { Accept: 'application/json' } },
+      OSINT_CLIENT_MS,
+    );
     const body = (await response.json().catch(() => null)) as OsintProviderResponse | null;
     if (!body) {
       return { provider, error: `OSINT proxy HTTP ${response.status}` };
     }
     if (!response.ok && body.error) return { ...body, provider };
     return { ...body, provider: body.provider || provider };
-  } catch {
-    return { provider, error: 'Could not reach /api/osint.' };
+  } catch (err) {
+    return {
+      provider,
+      error: err instanceof Error ? err.message : 'Could not reach /api/osint.',
+    };
   }
 }
 

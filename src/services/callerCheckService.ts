@@ -3,6 +3,10 @@
  * APIs only (AbstractAPI, Numverify, Twilio Lookup). Not Truecaller private RE.
  */
 
+import { fetchWithTimeout } from '../lib/fetchWithTimeout';
+
+const CALLER_CHECK_CLIENT_MS = 22_000;
+
 export interface CallerProviderResult {
   id: string;
   name: string;
@@ -27,11 +31,16 @@ export interface CallerCheckResponse {
   error?: string;
 }
 
-export async function runCallerCheck(e164: string): Promise<CallerCheckResponse> {
+export async function runCallerCheck(
+  e164: string,
+  signal?: AbortSignal,
+): Promise<CallerCheckResponse> {
   try {
-    const response = await fetch(`/api/caller-check?number=${encodeURIComponent(e164)}`, {
-      headers: { Accept: 'application/json' },
-    });
+    const response = await fetchWithTimeout(
+      `/api/caller-check?number=${encodeURIComponent(e164)}`,
+      { headers: { Accept: 'application/json' }, signal },
+      CALLER_CHECK_CLIENT_MS,
+    );
     const body = (await response.json().catch(() => null)) as CallerCheckResponse | null;
     if (!body) {
       return {
@@ -45,12 +54,15 @@ export async function runCallerCheck(e164: string): Promise<CallerCheckResponse>
       return { ...body, configured: body.configured ?? false, providers: body.providers ?? [] };
     }
     return body;
-  } catch {
+  } catch (err) {
     return {
       configured: false,
       number: e164,
       providers: [],
-      error: 'Could not reach /api/caller-check. Check that the API route is deployed.',
+      error:
+        err instanceof Error && err.name === 'FetchTimeoutError'
+          ? 'Caller check timed out. Try again.'
+          : 'Could not reach /api/caller-check. Check that the API route is deployed.',
     };
   }
 }

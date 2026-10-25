@@ -125,19 +125,31 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onSignIn, onGetStarted
             </span>
             <h1 className="mt-5 text-4xl font-bold tracking-tight text-white sm:text-5xl">{t('heroTitle')}</h1>
             <p className="mx-auto mt-5 max-w-2xl text-base leading-7 text-slate-300 sm:text-lg">{t('heroSubtitle')}</p>
-            <div className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">
+            <div className="mt-8 grid w-full max-w-2xl gap-3 sm:grid-cols-2 mx-auto text-start">
               <button
-                onClick={() => onOpenTool('lookup')}
-                className="inline-flex h-12 items-center justify-center gap-2 rounded-xl bg-cyan-400 px-6 text-sm font-semibold text-slate-950 transition-colors hover:bg-cyan-300"
+                onClick={() => onOpenTool('consent')}
+                className="rounded-2xl border border-emerald-800/50 bg-emerald-950/20 p-5 transition hover:border-emerald-500/50"
               >
-                {t('heroTryLookup')}
-                <ArrowRight className="h-4 w-4 rtl:rotate-180" aria-hidden="true" />
+                <span className="text-xs font-semibold uppercase tracking-[0.16em] text-emerald-300">Consent link</span>
+                <p className="mt-2 text-base font-bold text-white">Share a link to get info with consent</p>
+                <p className="mt-1.5 text-sm text-slate-400">Person agrees → location / device they share</p>
               </button>
               <button
+                onClick={() => onOpenTool('search')}
+                className="rounded-2xl border border-cyan-800/50 bg-cyan-950/20 p-5 transition hover:border-cyan-500/50"
+              >
+                <span className="text-xs font-semibold uppercase tracking-[0.16em] text-cyan-300">Search resources</span>
+                <p className="mt-2 text-base font-bold text-white">Search a target in all available resources</p>
+                <p className="mt-1.5 text-sm text-slate-400">Phone · email · username · IP · domain OSINT</p>
+              </button>
+            </div>
+            <div className="mt-5 flex flex-col items-center justify-center gap-3 sm:flex-row">
+              <button
                 onClick={onGetStarted}
-                className="inline-flex h-12 items-center justify-center rounded-xl border border-slate-700 px-6 text-sm font-semibold text-slate-100 transition-colors hover:border-slate-500"
+                className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-cyan-400 px-5 text-sm font-semibold text-slate-950 transition-colors hover:bg-cyan-300"
               >
                 {t('createFreeAccount')}
+                <ArrowRight className="h-4 w-4 rtl:rotate-180" aria-hidden="true" />
               </button>
             </div>
             <p className="mt-3 text-xs text-slate-500">{t('heroNote')}</p>

@@ -8,6 +8,8 @@ import { LangToggle } from './LangToggle';
 export type TabId =
   | 'home'
   | 'signin'
+  | 'consent'
+  | 'search'
   | 'lookup'
   | 'phoneinfoga'
   | 'caller_check'
@@ -24,6 +26,7 @@ export type TabId =
   | 'investigations'
   | 'public_osint'
   | 'resource_hub'
+  | 'public_apis'
   | 'campaigns'
   | 'plan'
   | 'admin'
@@ -72,17 +75,18 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab }) => {
     };
   }, [isAdmin, activeTab]);
 
-  const primaryTabs: TabDef[] = (
+  /** Two primary product jobs — everything else under More. */
+  const primaryTabs: TabDef[] = [
+    { id: 'consent', label: 'Consent link', paid: true },
+    { id: 'search', label: 'Search resources' },
+  ];
+
+  const moreTabs: TabDef[] = (
     [
       { id: 'lookup', label: t('navLookup') },
       { id: 'ip', label: t('navIp') },
       { id: 'live_gps', label: t('navLive'), paid: true },
       { id: 'god_eye', label: t('navGodEye'), paid: true },
-    ] as TabDef[]
-  ).filter((tab) => !tab.account || user);
-
-  const moreTabs: TabDef[] = (
-    [
       { id: 'public_osint', label: t('navOsint') },
       { id: 'spiderfoot', label: t('navSpiderFoot') },
       { id: 'phoneinfoga', label: t('navPhoneInfoga') },
@@ -91,12 +95,15 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab }) => {
       { id: 'holehe', label: t('navHolehe') },
       { id: 'shodan', label: t('navShodan') },
       { id: 'osint_providers', label: t('navProviders') },
+      { id: 'public_apis', label: 'Public APIs' },
       { id: 'batch', label: t('navBatch'), account: true },
       { id: 'history', label: t('navHistory'), account: true },
       { id: 'resource_hub', label: t('navHub') },
       { id: 'investigations', label: t('navInvest'), paid: true },
       { id: 'campaigns', label: t('navCampaigns'), paid: true },
-      ...(user ? [isAdmin ? { id: 'admin' as const, label: t('navCustomers') } : { id: 'plan' as const, label: t('navPlan') }] : []),
+      ...(user
+        ? [isAdmin ? { id: 'admin' as const, label: 'Admin' } : { id: 'plan' as const, label: t('navPlan') }]
+        : []),
     ] as TabDef[]
   ).filter((tab) => !tab.account || user);
 
@@ -131,9 +138,9 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab }) => {
     <div className="sticky top-0 z-50 bg-slate-950/80 backdrop-blur-md border-b border-slate-800">
       <header className="flex items-center justify-between gap-4 lg:gap-8 px-4 sm:px-6 py-3 lg:py-4">
         <button
-          onClick={() => setActiveTab(user ? 'lookup' : 'home')}
+          onClick={() => setActiveTab(user ? 'search' : 'home')}
           className="flex items-center gap-2 select-none shrink-0"
-          aria-label={user ? 'GeoPhone, go to Single Lookup' : 'GeoPhone, go to home'}
+          aria-label={user ? 'GeoPhone home' : 'GeoPhone, go to home'}
         >
           <div className="w-8 h-8 rounded-lg bg-cyan-500/10 border border-cyan-500/30 flex items-center justify-center text-cyan-400">
             <Radio className="w-4 h-4" aria-hidden="true" />
@@ -163,7 +170,7 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab }) => {
               aria-haspopup="menu"
               className={`inline-flex items-center gap-1 ${tabButtonClass('resource_hub', moreActive && !primaryTabs.some((p) => p.id === activeTab))}`}
             >
-              More
+              More tools
               <ChevronDown className={`w-3.5 h-3.5 transition-transform ${moreOpen ? 'rotate-180' : ''}`} aria-hidden="true" />
             </button>
             {moreOpen && (

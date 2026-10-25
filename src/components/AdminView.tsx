@@ -3,7 +3,10 @@ import { Loader2, Search } from 'lucide-react';
 import { adminListCustomers, adminSetAccess, adminSetPaymentLink, type CustomerRow } from '../services/accessService';
 import { timeAgo } from '../services/lastLocationService';
 import { AdminSecurity, type SecurityStatus } from './AdminSecurity';
+import { AdminImpeccable } from './AdminImpeccable';
+import { AdminApiKeys } from './AdminApiKeys';
 import { ReportsPanel } from './ReportsPanel';
+import { fetchAiStatus, type AiStatus } from '../services/aiBriefService';
 
 function accessLabel(c: CustomerRow, now = Date.now()): { text: string; tone: string } {
   if (c.role === 'admin') return { text: 'Admin', tone: 'text-cyan-200 bg-cyan-500/15 border-cyan-500/30' };
@@ -159,7 +162,14 @@ export const AdminView: React.FC = () => {
   const [query, setQuery] = useState('');
   const [busyId, setBusyId] = useState<string | null>(null);
   const [sec, setSec] = useState<SecurityStatus>('loading');
+  const [adminTab, setAdminTab] = useState<'customers' | 'design' | 'api' | 'system'>('customers');
+  const [aiStatus, setAiStatus] = useState<AiStatus | null>(null);
   const onSec = useCallback((s: SecurityStatus) => setSec(s), []);
+
+  useEffect(() => {
+    if (adminTab !== 'system') return;
+    void fetchAiStatus().then(setAiStatus);
+  }, [adminTab]);
 
   const load = useCallback(async () => {
     try {
@@ -213,6 +223,74 @@ export const AdminView: React.FC = () => {
 
       {sec !== 'ok' ? null : (
       <div className="space-y-5">
+      <div className="flex flex-wrap gap-2">
+        <button
+          type="button"
+          onClick={() => setAdminTab('customers')}
+          className={`h-9 px-3 rounded-lg text-sm font-medium ${
+            adminTab === 'customers' ? 'bg-cyan-400 text-slate-950' : 'border border-slate-700 text-slate-300'
+          }`}
+        >
+          Customers
+        </button>
+        <button
+          type="button"
+          onClick={() => setAdminTab('api')}
+          className={`h-9 px-3 rounded-lg text-sm font-medium ${
+            adminTab === 'api' ? 'bg-cyan-400 text-slate-950' : 'border border-slate-700 text-slate-300'
+          }`}
+        >
+          API keys
+        </button>
+        <button
+          type="button"
+          onClick={() => setAdminTab('design')}
+          className={`h-9 px-3 rounded-lg text-sm font-medium ${
+            adminTab === 'design' ? 'bg-cyan-400 text-slate-950' : 'border border-slate-700 text-slate-300'
+          }`}
+        >
+          Impeccable / Design
+        </button>
+        <button
+          type="button"
+          onClick={() => setAdminTab('system')}
+          className={`h-9 px-3 rounded-lg text-sm font-medium ${
+            adminTab === 'system' ? 'bg-cyan-400 text-slate-950' : 'border border-slate-700 text-slate-300'
+          }`}
+        >
+          System
+        </button>
+      </div>
+
+      {adminTab === 'design' && <AdminImpeccable />}
+      {adminTab === 'api' && <AdminApiKeys />}
+      {adminTab === 'system' && (
+        <section className="space-y-3 rounded-xl border border-slate-800 bg-slate-900/50 p-5">
+          <h2 className="text-lg font-bold text-slate-100">System health (no secrets)</h2>
+          <ul className="text-sm text-slate-300 space-y-1.5">
+            <li>
+              Groq:{' '}
+              <span className={aiStatus?.groq ? 'text-emerald-300' : 'text-slate-500'}>
+                {aiStatus?.groq ? `configured (${aiStatus.groqModel})` : 'not configured'}
+              </span>
+            </li>
+            <li>
+              Ollama:{' '}
+              <span className={aiStatus?.ollama ? 'text-emerald-300' : 'text-slate-500'}>
+                {aiStatus?.ollama
+                  ? `reachable (${aiStatus.ollamaModel} @ ${aiStatus.ollamaBase})`
+                  : 'not reachable'}
+              </span>
+            </li>
+            <li>Public API: <code className="text-cyan-300">POST /api/v1/intel</code> · free 100/mo</li>
+            <li>Sections: Consent link · Search all resources</li>
+            <li>Stripe: set VITE_STRIPE_PAYMENT_LINK / STRIPE_* when ready (see docs/MONETIZATION.md)</li>
+          </ul>
+        </section>
+      )}
+
+      {adminTab === 'customers' && (
+      <>
       <div className="space-y-1">
         <h1 className="text-xl font-bold tracking-tight text-slate-100">Customers</h1>
         <p className="text-sm text-slate-300">
@@ -257,6 +335,8 @@ export const AdminView: React.FC = () => {
       )}
 
       <ReportsPanel />
+      </>
+      )}
       </div>
       )}
     </div>

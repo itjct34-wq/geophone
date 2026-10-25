@@ -24,7 +24,10 @@ import { AdminView } from './components/AdminView';
 import { LockedFeature } from './components/LockedFeature';
 import { InvestigationCenter } from './components/InvestigationCenter';
 import { PublicResourceHub } from './components/PublicResourceHub';
+import { PublicApisHubView } from './components/PublicApisHubView';
 import { CampaignCenter } from './components/CampaignCenter';
+import { ConsentShareView } from './components/ConsentShareView';
+import { SearchAllResourcesView } from './components/SearchAllResourcesView';
 import { TermsGate } from './components/TermsGate';
 import { LandingPage } from './components/LandingPage';
 import { LoginPage } from './components/LoginPage';
@@ -36,11 +39,11 @@ import { parsePhoneNumber } from './services/phoneParser';
 import { Info, ShieldCheck } from 'lucide-react';
 
 /** Tabs that require a signed-in account; a logged-out visitor is sent home instead. */
-const ACCOUNT_TABS: TabId[] = ['batch', 'history', 'plan', 'admin'];
+const ACCOUNT_TABS: TabId[] = ['batch', 'history', 'plan', 'admin', 'consent'];
 
 export default function App() {
   const { user, isAdmin, hasPaid } = useAuth();
-  const [activeTab, setActiveTab] = useState<TabId>(user ? 'lookup' : 'home');
+  const [activeTab, setActiveTab] = useState<TabId>(user ? 'search' : 'home');
   const [inputNumber, setInputNumber] = useState('');
   const [usageTick, setUsageTick] = useState(0);
   const [lookupBlocked, setLookupBlocked] = useState(false);
@@ -167,6 +170,23 @@ export default function App() {
 
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6">
         <TermsGate />
+
+        {activeTab === 'consent' && (
+          <ConsentShareView
+            currentNumber={inputNumber}
+            hasPaid={hasPaid}
+            onOpenTab={setActiveTab}
+            onRequestUpgrade={() => setActiveTab(user ? 'plan' : 'signin')}
+          />
+        )}
+
+        {activeTab === 'search' && (
+          <SearchAllResourcesView
+            initialTarget={inputNumber}
+            onUsePhone={(n) => setInputNumber(n)}
+            onOpenTab={setActiveTab}
+          />
+        )}
 
         {activeTab === 'lookup' && (
           <div className="space-y-4">
@@ -295,6 +315,8 @@ export default function App() {
         )}
 
         {activeTab === 'resource_hub' && <PublicResourceHub />}
+
+        {activeTab === 'public_apis' && <PublicApisHubView />}
 
         {activeTab === 'campaigns' &&
           (hasPaid ? (

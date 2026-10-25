@@ -11,6 +11,7 @@ import {
   usernameLooksValid,
   type SherlockSite,
 } from '../src/data/sherlockSites';
+import { mapPool } from './_lib/mapPool';
 
 interface Req {
   query: Record<string, string | string[] | undefined>;
@@ -20,7 +21,9 @@ interface Res {
   status: (code: number) => { json: (body: unknown) => void };
 }
 
-const PER_SITE_MS = 4500;
+const PER_SITE_MS = 3500;
+/** Hard cap so Vercel / the browser never wait on dozens of slow upstreams at once. */
+const SITE_CONCURRENCY = 5;
 const UA =
   'GeoPhoneSherlock/1.0 (+https://github.com/sherlock-project/sherlock; public OSINT; respectful)';
 
@@ -137,8 +140,10 @@ export default async function handler(req: Req, res: Res) {
     return;
   }
 
-  // Cap concurrency-friendly parallel checks (Vercel time budget).
-  const results = await Promise.all(SHERLOCK_PROBE_SITES.map((site) => checkSite(site, username)));
+  // Bounded concurrency — unbounded Promise.all froze the UI / exhausted serverless sockets.
+  const results = await mapPool(SHERLOCK_PROBE_SITES, SITE_CONCURRENCY, (site) =>
+    checkSite(site, username),
+  );
 
   const found = results.filter((r) => r.status === 'found').length;
   const notFound = results.filter((r) => r.status === 'not_found').length;

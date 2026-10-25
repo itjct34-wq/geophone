@@ -8,6 +8,10 @@ import {
   formatSherlockUrl,
   type SherlockSite,
 } from '../data/sherlockSites';
+import { fetchWithTimeout } from '../lib/fetchWithTimeout';
+
+/** Client wait budget: server runs ~25 sites × 3.5s at concurrency 5 ≈ ~20s worst case. */
+const SHERLOCK_CLIENT_MS = 35_000;
 
 export type SherlockHitStatus = 'found' | 'not_found' | 'invalid' | 'error' | 'manual';
 
@@ -38,14 +42,19 @@ export function buildManualHits(username: string, sites: SherlockSite[] = SHERLO
   }));
 }
 
-export async function runSherlockHunt(username: string): Promise<SherlockHuntReport> {
+export async function runSherlockHunt(
+  username: string,
+  signal?: AbortSignal,
+): Promise<SherlockHuntReport> {
   const trimmed = username.trim();
   const manual = buildManualHits(trimmed);
 
   try {
-    const response = await fetch(`/api/sherlock?username=${encodeURIComponent(trimmed)}`, {
-      headers: { Accept: 'application/json' },
-    });
+    const response = await fetchWithTimeout(
+      `/api/sherlock?username=${encodeURIComponent(trimmed)}`,
+      { headers: { Accept: 'application/json' }, signal },
+      SHERLOCK_CLIENT_MS,
+    );
     const body = (await response.json().catch(() => null)) as {
       username?: string;
       summary?: SherlockHuntReport['summary'];

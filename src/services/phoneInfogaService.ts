@@ -12,6 +12,9 @@
 
 import { parsePhoneNumber } from './phoneParser';
 import type { PhoneLookupResult } from '../types/phone';
+import { fetchWithTimeout } from '../lib/fetchWithTimeout';
+
+const PHONE_SCAN_CLIENT_MS = 22_000;
 
 export type FootprintEngine = 'Google' | 'Bing' | 'DuckDuckGo';
 
@@ -322,11 +325,16 @@ export function buildScanReport(
 }
 
 /** Call the server proxy for keyed / CORS-bound public phone APIs. */
-export async function fetchRemotePhoneScan(e164: string): Promise<RemoteScanPayload | null> {
+export async function fetchRemotePhoneScan(
+  e164: string,
+  signal?: AbortSignal,
+): Promise<RemoteScanPayload | null> {
   try {
-    const response = await fetch(`/api/phone-scan?number=${encodeURIComponent(e164)}`, {
-      headers: { Accept: 'application/json' },
-    });
+    const response = await fetchWithTimeout(
+      `/api/phone-scan?number=${encodeURIComponent(e164)}`,
+      { headers: { Accept: 'application/json' }, signal },
+      PHONE_SCAN_CLIENT_MS,
+    );
     if (!response.ok) {
       const body = (await response.json().catch(() => null)) as { error?: string } | null;
       return { error: body?.error || `Remote scan HTTP ${response.status}` };
@@ -337,11 +345,14 @@ export async function fetchRemotePhoneScan(e164: string): Promise<RemoteScanPayl
   }
 }
 
-export async function runPhoneInfogaStyleScan(rawInput: string): Promise<PhoneInfogaScanReport> {
+export async function runPhoneInfogaStyleScan(
+  rawInput: string,
+  signal?: AbortSignal,
+): Promise<PhoneInfogaScanReport> {
   const local = parsePhoneNumber(rawInput);
   let remote: RemoteScanPayload | null = null;
   if (local.isValid && local.e164) {
-    remote = await fetchRemotePhoneScan(local.e164);
+    remote = await fetchRemotePhoneScan(local.e164, signal);
   }
   return buildScanReport(rawInput, remote);
 }
