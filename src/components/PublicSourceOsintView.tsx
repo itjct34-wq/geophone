@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { NetworkDiagnostics } from './NetworkDiagnostics';
 import { AtSign, CheckCircle2, ExternalLink, FileImage, Globe2, MailCheck, Search, ShieldCheck, UserRoundSearch, XCircle } from 'lucide-react';
 
 type EmailState = { state: 'idle' | 'checking' | 'ok' | 'missing' | 'error'; message: string; records: string[] };
@@ -72,6 +73,7 @@ export function PublicSourceOsintView() {
   const exactEmailQuery = email.trim();
 
   return <div className="space-y-6">
+    <NetworkDiagnostics />
     <header>
       <div className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.2em] text-cyan-300"><Search className="h-4 w-4"/>Public-source research</div>
       <h1 className="text-2xl font-bold tracking-tight text-white sm:text-3xl">Username, email & image OSINT</h1>
