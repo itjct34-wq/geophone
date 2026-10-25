@@ -40,6 +40,7 @@ import {
 } from '../services/openCageService';
 import { LiveTrackingShareModal } from './LiveTrackingShareModal';
 import { LastKnownLocationCard } from './LastKnownLocationCard';
+import { NumberActivityCard } from './NumberActivityCard';
 import { getLastKnownLocation, timeAgo, type LastKnownLocation } from '../services/lastLocationService';
 import { resolvePlusCode, isPlusCode, ResolvedPlusCode } from '../services/plusCodeService';
 
@@ -325,6 +326,10 @@ export const PhoneLookupView: React.FC<PhoneLookupViewProps> = ({
         />
       )}
 
+      {result.isValid && result.e164 && (
+        <NumberActivityCard result={result} onAskToShare={() => setIsShareModalOpen(true)} />
+      )}
+
       {/* CRITICAL REALITY FIX: Real Handset GPS vs Public Centroid */}
       <div className={`rounded-xl p-5 shadow-lg space-y-4 border transition-all ${
         liveGpsFix
@@ -388,7 +393,7 @@ export const PhoneLookupView: React.FC<PhoneLookupViewProps> = ({
                   </span>
                 ) : (
                   <span>
-                    Mobile numbers aren't tied to a place, so the map shows the centre of the country. The area shown is detected automatically. Use Track Real GPS for this device's true position.
+                    Mobile numbers aren't tied to a place, so the map only marks the country. Send a consent link to get a real position, or use Track Real GPS for this device's own position.
                   </span>
                 )}
               </p>
@@ -515,7 +520,7 @@ export const PhoneLookupView: React.FC<PhoneLookupViewProps> = ({
             <div className="flex items-center gap-2 text-slate-300">
               <Radio className="w-4 h-4 text-emerald-400 shrink-0" />
               <span>
-                Found <strong className="text-emerald-400 font-mono">{result.matchingSurveyCellsCount} {result.carrier.split(' ')[0]} Base Stations</strong> in your cellular survey dump ({result.mccMnc}).
+                Your cell survey file has <strong className="text-emerald-400 font-mono">{result.matchingSurveyCellsCount} {result.carrier.split(' ')[0]} towers</strong> ({result.mccMnc}). This is about the carrier's network, not where this number is.
               </span>
             </div>
             {onSwitchTab && (
