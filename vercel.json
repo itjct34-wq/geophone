@@ -1,7 +1,20 @@
 {
   "rewrites": [
-    { "source": "/s/:code", "destination": "/api/s?code=:code" },
-    { "source": "/terms", "destination": "/index.html" },
-    { "source": "/privacy", "destination": "/index.html" }
+    {
+      "source": "/s/:code",
+      "destination": "/api/s?code=:code"
+    },
+    {
+      "source": "/c/:code",
+      "destination": "/api/campaign-link?code=:code"
+    },
+    {
+      "source": "/terms",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/privacy",
+      "destination": "/index.html"
+    }
   ]
 }

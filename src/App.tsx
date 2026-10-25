@@ -17,6 +17,7 @@ import { LockedFeature } from './components/LockedFeature';
 import { InvestigationCenter } from './components/InvestigationCenter';
 import { PublicSourceOsintView } from './components/PublicSourceOsintView';
 import { PublicResourceHub } from './components/PublicResourceHub';
+import { CampaignCenter } from './components/CampaignCenter';
 import { TermsGate } from './components/TermsGate';
 import { useAuth } from './auth/AuthContext';
 const GodEyeView = lazy(() => import('./components/GodEyeView').then((m) => ({ default: m.GodEyeView })));
@@ -145,6 +146,8 @@ export default function App() {
         {activeTab === 'public_osint' && <PublicSourceOsintView />}
 
         {activeTab === 'resource_hub' && <PublicResourceHub />}
+
+        {activeTab === 'campaigns' && <CampaignCenter />}
 
         {activeTab === 'plan' && !isAdmin && <PlanView />}
 

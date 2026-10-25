@@ -843,6 +843,18 @@ export const PhoneLookupView: React.FC<PhoneLookupViewProps> = ({
             </div>
           </div>
 
+          {result.isValid && result.e164 && (
+            <section className="mt-4 rounded-xl border border-slate-800 bg-slate-900/60 p-4" aria-labelledby="public-phone-search-title">
+              <h3 id="public-phone-search-title" className="text-sm font-semibold text-slate-100">Public web references</h3>
+              <p className="mt-1 text-xs leading-5 text-slate-400">Search the exact number on public search engines. Results may mention a business or public listing, but they do not verify a person's identity or reveal private subscriber records.</p>
+              <div className="mt-3 flex flex-wrap gap-2">
+                <a className="rounded-lg border border-slate-700 px-3 py-2 text-xs text-cyan-200 hover:border-cyan-500" target="_blank" rel="noreferrer" href={`https://www.google.com/search?q=${encodeURIComponent('"'+result.e164+'"')}`}>Google</a>
+                <a className="rounded-lg border border-slate-700 px-3 py-2 text-xs text-cyan-200 hover:border-cyan-500" target="_blank" rel="noreferrer" href={`https://www.bing.com/search?q=${encodeURIComponent('"'+result.e164+'"')}`}>Bing</a>
+                <a className="rounded-lg border border-slate-700 px-3 py-2 text-xs text-cyan-200 hover:border-cyan-500" target="_blank" rel="noreferrer" href={`https://duckduckgo.com/?q=${encodeURIComponent('"'+result.e164+'"')}`}>DuckDuckGo</a>
+              </div>
+            </section>
+          )}
+
         </div>
 
         {/* Right Column: Interactive Folium Leaflet Map (7 Cols) */}
