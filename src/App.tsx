@@ -6,6 +6,7 @@
 import React, { Suspense, lazy, useMemo, useState } from 'react';
 import { Navbar, type TabId } from './components/Navbar';
 import { HistoryView } from './components/HistoryView';
+import { IpNetworkView } from './components/IpNetworkView';
 import { addHistory } from './services/dataService';
 import { PhoneLookupView } from './components/PhoneLookupView';
 import { LiveHandsetTrackerView } from './components/LiveHandsetTrackerView';
@@ -22,6 +23,14 @@ export default function App() {
   const phoneResult = useMemo(() => {
     return parsePhoneNumber(inputNumber);
   }, [inputNumber]);
+
+  // A position sent to the globe from another tab (e.g. an IP lookup) wins over the number's
+  const [globeOverride, setGlobeOverride] = useState<{ lat: number; lng: number; label: string } | null>(null);
+
+  // A newly entered number takes the globe back from an IP lookup
+  React.useEffect(() => {
+    setGlobeOverride(null);
+  }, [phoneResult.e164]);
 
   // Stable target for the God Eye globe (only changes when the number does)
   const godEyeTarget = useMemo(
@@ -104,9 +113,18 @@ export default function App() {
           <BatchTrackerView onSelectNumber={handleSelectBatchNumber} />
         )}
 
+        {activeTab === 'ip' && (
+          <IpNetworkView
+            onOpenGodEye={(target) => {
+              setGlobeOverride(target);
+              setActiveTab('god_eye');
+            }}
+          />
+        )}
+
         {activeTab === 'god_eye' && (
           <Suspense fallback={<p className="text-xs text-slate-400 p-6">Loading globe...</p>}>
-            <GodEyeView target={godEyeTarget} />
+            <GodEyeView target={globeOverride ?? godEyeTarget} />
           </Suspense>
         )}
 
