@@ -67,7 +67,7 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab }) => {
     { id: 'investigations', label: 'Investigations' },
     { id: 'public_osint', label: 'Username / Email / Image' },
     { id: 'resource_hub', label: 'Resource Hub' },
-    { id: 'campaigns', label: 'Campaigns & SMS' }
+    { id: 'campaigns', label: 'Campaigns & SMS' },
     isAdmin ? { id: 'admin', label: 'Customers' } : { id: 'plan', label: 'Plan' },
   ];
 
