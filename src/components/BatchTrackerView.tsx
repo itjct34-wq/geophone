@@ -6,6 +6,12 @@ import { PhoneLookupResult } from '../types/phone';
 
 const DEFAULT_BATCH_TEXT = '';
 
+function csvCell(value: unknown, spreadsheetSafe = true): string {
+  const text = String(value ?? '');
+  const protectedText = spreadsheetSafe && /^[\t\r\n ]*[=+\-@]/.test(text) ? `'${text}` : text;
+  return `"${protectedText.replace(/"/g, '""')}"`;
+}
+
 interface BatchTrackerViewProps {
   onSelectNumber: (num: string) => void;
 }
@@ -79,37 +85,31 @@ export const BatchTrackerView: React.FC<BatchTrackerViewProps> = ({ onSelectNumb
 
   const handleExportCsv = () => {
     const headers = [
-      'Raw Input',
-      'Valid',
-      'International',
-      'National',
-      'E.164',
-      'Country',
-      'Region',
-      'Carrier',
-      'Line Type',
-      'Latitude',
-      'Longitude',
-      'Timezone',
+      'Raw Input', 'Valid', 'International', 'National', 'E.164', 'Country',
+      'Region', 'Carrier', 'Line Type', 'Latitude', 'Longitude', 'Timezone',
     ];
-
     const rows = results.map((r) => [
-      `"${r.rawInput}"`,
+      r.rawInput,
       r.isValid ? 'Yes' : 'No',
-      `"${r.international || ''}"`,
-      `"${r.national || ''}"`,
-      `"${r.e164 || ''}"`,
-      `"${r.countryName}"`,
-      `"${r.regionOrCity}"`,
-      `"${r.carrier}"`,
-      `"${r.lineType}"`,
+      r.international || '',
+      r.national || '',
+      r.e164 || '',
+      r.countryName,
+      r.regionOrCity,
+      r.carrier,
+      r.lineType,
       r.coordinates.lat.toFixed(6),
       r.coordinates.lng.toFixed(6),
-      `"${r.timezones.join(';')}"`,
+      r.timezones.join(';'),
     ]);
-
-    const csvContent = [headers.join(','), ...rows.map((r) => r.join(','))].join('\n');
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const numericCoordinateIndexes = new Set([9, 10]);
+    const csvContent = [
+      headers.map((h) => csvCell(h, false)).join(','),
+      ...rows.map((row) => row.map((value, index) =>
+        csvCell(value, !numericCoordinateIndexes.has(index)),
+      ).join(',')),
+    ].join('\r\n');
+    const blob = new Blob(['\uFEFF', csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
@@ -117,7 +117,7 @@ export const BatchTrackerView: React.FC<BatchTrackerViewProps> = ({ onSelectNumb
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
-    URL.revokeObjectURL(url);
+    window.setTimeout(() => URL.revokeObjectURL(url), 1000);
   };
 
   return (

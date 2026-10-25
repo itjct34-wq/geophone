@@ -47,6 +47,7 @@ import {
   getLastKnownLocation,
   savePastedLocation,
   timeAgo,
+  PASTED_LABEL,
   type LastKnownLocation,
 } from '../services/lastLocationService';
 import { parseSharedLocation } from '../services/locationParser';
@@ -56,7 +57,6 @@ interface PhoneLookupViewProps {
   inputNumber: string;
   setInputNumber: (num: string) => void;
   result: PhoneLookupResult;
-  onExportHtml: () => void;
   onSwitchTab?: (tab: 'lookup' | 'live_gps' | 'batch' | 'plan' | 'python' | 'guide') => void;
   onOpenGodEye?: (target: { lat: number; lng: number; label: string }) => void;
 }
@@ -73,7 +73,6 @@ export const PhoneLookupView: React.FC<PhoneLookupViewProps> = ({
   inputNumber,
   setInputNumber,
   result,
-  onExportHtml,
   onSwitchTab,
   onOpenGodEye,
 }) => {
@@ -143,9 +142,15 @@ export const PhoneLookupView: React.FC<PhoneLookupViewProps> = ({
     if (resolved) {
       setActivePlusCodeFix(resolved);
       setIsPlusCodeActive(true);
+      gpsRequestIdRef.current += 1;
       setLiveGpsFix(null);
+      setIsLocatingDevice(false);
+      setLiveGpsError(null);
     } else {
-      setPlusCodeError(`Could not decode Plus Code "${target}". Expected format: XXXX+XX City or a full code like 8FVC9G8F+6W`);
+      // Do not silently keep the previous pin active when a newly submitted code is invalid.
+      setActivePlusCodeFix(null);
+      setIsPlusCodeActive(false);
+      setPlusCodeError(`Could not decode Plus Code "${target}". A short code needs a recognized locality; otherwise use a full global code like 8FVC9G8F+6W.`);
     }
   };
 
@@ -159,6 +164,22 @@ export const PhoneLookupView: React.FC<PhoneLookupViewProps> = ({
   } | null>(null);
   const [isLocatingDevice, setIsLocatingDevice] = useState<boolean>(false);
   const [liveGpsError, setLiveGpsError] = useState<string | null>(null);
+  const gpsRequestIdRef = useRef(0);
+
+  const clearLiveGpsFix = () => {
+    gpsRequestIdRef.current += 1;
+    setLiveGpsFix(null);
+    setIsLocatingDevice(false);
+    setLiveGpsError(null);
+  };
+
+  // A device GPS fix belongs to the current session/target, not the next number entered.
+  useEffect(() => {
+    gpsRequestIdRef.current += 1; // Ignore an in-flight GPS callback after the lookup target changes.
+    setLiveGpsFix(null);
+    setLiveGpsError(null);
+    setIsLocatingDevice(false);
+  }, [result.e164]);
 
   // Automated Execution Pipeline State
 
@@ -168,6 +189,7 @@ export const PhoneLookupView: React.FC<PhoneLookupViewProps> = ({
       setLiveGpsError('Geolocation is not supported by your browser.');
       return;
     }
+    const requestId = ++gpsRequestIdRef.current;
     setIsLocatingDevice(true);
     setLiveGpsError(null);
 
@@ -176,28 +198,30 @@ export const PhoneLookupView: React.FC<PhoneLookupViewProps> = ({
         const lat = pos.coords.latitude;
         const lng = pos.coords.longitude;
         const acc = Math.round(pos.coords.accuracy);
-
-        // Reverse geocode real coordinates using OpenCage
-        const rev = await reverseGeocodeWithOpenCage(lat, lng, openCageKey);
-
-        setLiveGpsFix({
-          lat,
-          lng,
-          accuracy: acc,
-          address: rev.formattedAddress,
-          source: 'device_sensor',
-        });
+        let address: string | undefined;
+        try {
+          const rev = await reverseGeocodeWithOpenCage(lat, lng, openCageKey);
+          if (gpsRequestIdRef.current !== requestId) return;
+          address = rev.formattedAddress || undefined;
+        } catch {
+          address = undefined;
+        }
+        if (gpsRequestIdRef.current !== requestId) return;
+        setLiveGpsFix({ lat, lng, accuracy: acc, address, source: 'device_sensor' });
         setIsLocatingDevice(false);
       },
       (err) => {
+        if (gpsRequestIdRef.current !== requestId) return;
         setIsLocatingDevice(false);
         setLiveGpsError(
-          err.code === 1
-            ? 'Location permission was denied. Please allow location access in your browser to test real GPS.'
-            : 'Unable to retrieve device GPS fix. Please verify device location services are enabled.'
+          err.code === err.PERMISSION_DENIED
+            ? 'Location permission was denied. Please allow location access in your browser to locate this device.'
+            : err.code === err.TIMEOUT
+            ? 'The location request timed out. Check location services and try again.'
+            : 'Unable to retrieve this device’s location. Please verify location services are enabled.',
         );
       },
-      { enableHighAccuracy: true, timeout: 12000, maximumAge: 0 }
+      { enableHighAccuracy: true, timeout: 12000, maximumAge: 0 },
     );
   };
 
@@ -205,6 +229,14 @@ export const PhoneLookupView: React.FC<PhoneLookupViewProps> = ({
   useEffect(() => {
     let isCancelled = false;
     const queryLocation = cityOverride ? `${cityOverride}, Pakistan` : (result.regionOrCity || result.countryName);
+    setOpenCageData(null);
+
+    // A country-level mobile result must not be geocoded into a guessed street/city.
+    if (result.coordinates.isApproximate && result.coordinates.accuracyKm >= 100 && !cityOverride) {
+      setIsGeocoding(false);
+      return () => { isCancelled = true; };
+    }
+
     setIsGeocoding(true);
 
     geocodeWithOpenCage(
@@ -213,10 +245,11 @@ export const PhoneLookupView: React.FC<PhoneLookupViewProps> = ({
       result.coordinates.lat,
       result.coordinates.lng
     ).then((res) => {
-      if (!isCancelled) {
-        setOpenCageData(res);
-        setIsGeocoding(false);
-      }
+      if (!isCancelled) setOpenCageData(res);
+    }).catch(() => {
+      if (!isCancelled) setOpenCageData(null);
+    }).finally(() => {
+      if (!isCancelled) setIsGeocoding(false);
     });
 
     return () => {
@@ -228,6 +261,7 @@ export const PhoneLookupView: React.FC<PhoneLookupViewProps> = ({
   const countryOnly =
     !liveGpsFix &&
     !(isPlusCodeActive && activePlusCodeFix) &&
+    !lastKnown &&
     !cityOverride &&
     result.coordinates.isApproximate &&
     result.coordinates.accuracyKm >= 100;
@@ -242,23 +276,7 @@ export const PhoneLookupView: React.FC<PhoneLookupViewProps> = ({
           lat: liveGpsFix.lat,
           lng: liveGpsFix.lng,
           displayName: `Live Device GPS: ${liveGpsFix.address || 'Exact Physical Fix'} (±${liveGpsFix.accuracy}m)`,
-          accuracyKm: Math.max(0.01, liveGpsFix.accuracy / 1000),
-          isApproximate: false,
-        },
-        confidence: 100,
-      };
-    }
-
-    if (lastKnown) {
-      const acc = Math.round(lastKnown.accuracy ?? 50);
-      return {
-        ...result,
-        regionOrCity: `Last shared location (${timeAgo(lastKnown.at)})`,
-        coordinates: {
-          lat: lastKnown.lat,
-          lng: lastKnown.lng,
-          displayName: `Last shared location: ${timeAgo(lastKnown.at)} (±${acc}m)`,
-          accuracyKm: Math.max(0.01, acc / 1000),
+          accuracyKm: Math.max(0.001, liveGpsFix.accuracy / 1000),
           isApproximate: false,
         },
         confidence: 100,
@@ -272,7 +290,7 @@ export const PhoneLookupView: React.FC<PhoneLookupViewProps> = ({
         coordinates: {
           lat: activePlusCodeFix.lat,
           lng: activePlusCodeFix.lng,
-          displayName: `Verified Plus Code Location: ${activePlusCodeFix.displayName} (±${activePlusCodeFix.accuracyMeters}m)`,
+          displayName: `Decoded Plus Code cell centre: ${activePlusCodeFix.displayName} (estimated cell radius ±${activePlusCodeFix.accuracyMeters}m)`,
           accuracyKm: activePlusCodeFix.accuracyMeters / 1000,
           isApproximate: false,
         },
@@ -280,7 +298,24 @@ export const PhoneLookupView: React.FC<PhoneLookupViewProps> = ({
       };
     }
 
-    if (!openCageData) return result;
+    if (lastKnown) {
+      const acc = lastKnown.accuracy === null ? null : Math.round(lastKnown.accuracy);
+      return {
+        ...result,
+        regionOrCity: `Last shared location (${timeAgo(lastKnown.at)})`,
+        coordinates: {
+          lat: lastKnown.lat,
+          lng: lastKnown.lng,
+          displayName: `Last shared location: ${timeAgo(lastKnown.at)}${acc === null ? ' (accuracy not reported)' : ` (±${acc}m)`}`,
+          accuracyKm: acc === null ? 0 : Math.max(0.001, acc / 1000),
+          isApproximate: false,
+        },
+        confidence: 100,
+      };
+    }
+
+    // A local/offline fallback must not override the parser's known coordinates.
+    if (!openCageData || openCageData.source !== 'opencage_api') return result;
     return {
       ...result,
       regionOrCity: cityOverride ? `${cityOverride}, Pakistan (Selected City)` : result.regionOrCity,
@@ -290,18 +325,29 @@ export const PhoneLookupView: React.FC<PhoneLookupViewProps> = ({
         lng: openCageData.lng,
         displayName: openCageData.formattedAddress || result.coordinates.displayName,
       },
-      confidence: openCageData.source === 'opencage_api' ? 98 : result.confidence,
+      confidence: result.confidence,
     };
   }, [result, openCageData, cityOverride, liveGpsFix, lastKnown, isPlusCodeActive, activePlusCodeFix]);
 
-  const handleCopy = (text: string, fieldName: string) => {
-    navigator.clipboard.writeText(text);
-    setCopiedField(fieldName);
-    setTimeout(() => setCopiedField(null), 2000);
+  const [copyError, setCopyError] = useState<string | null>(null);
+
+  const handleCopy = async (text: string, fieldName: string) => {
+    setCopyError(null);
+    try {
+      if (!navigator.clipboard?.writeText) {
+        throw new Error('Clipboard access is not available in this browser.');
+      }
+      await navigator.clipboard.writeText(text);
+      setCopiedField(fieldName);
+      window.setTimeout(() => setCopiedField((current) => current === fieldName ? null : current), 2000);
+    } catch {
+      setCopyError('Could not copy automatically. Select the displayed number and copy it manually.');
+    }
   };
 
   return (
     <div className="space-y-6">
+      {copyError && <p role="alert" className="rounded-lg border border-rose-900/60 bg-rose-950/30 px-3 py-2 text-xs text-rose-300">{copyError}</p>}
       {/* Search Bar & Auto-Execution Controls */}
       <div className="bg-slate-900 border border-slate-800 rounded-xl p-5 shadow-lg space-y-4">
         <div className="flex items-center gap-2">
@@ -380,7 +426,7 @@ export const PhoneLookupView: React.FC<PhoneLookupViewProps> = ({
               <div className="flex items-center gap-2 flex-wrap">
                 <h3 className="text-sm font-bold text-slate-100">
                   {liveGpsFix
-                    ? 'Device GPS active'
+                    ? 'Device GPS fix'
                     : lastKnown
                     ? 'Last shared location'
                     : (isPlusCodeActive && activePlusCodeFix)
@@ -398,7 +444,7 @@ export const PhoneLookupView: React.FC<PhoneLookupViewProps> = ({
                     ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/30'
                     : 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
                 }`}>
-                  {liveGpsFix ? `±${liveGpsFix.accuracy}m GPS Accuracy` : lastKnown ? `±${Math.round(lastKnown.accuracy ?? 50)}m GPS` : (isPlusCodeActive && activePlusCodeFix) ? '±14m Plus Code Exact Fix' : result.subAllocation ? 'Regional exchange' : 'Approximate'}
+                  {liveGpsFix ? `±${liveGpsFix.accuracy}m GPS Accuracy` : lastKnown ? (lastKnown.label === PASTED_LABEL ? 'Pasted coordinates' : lastKnown.accuracy === null ? 'Shared coordinates · accuracy unknown' : `±${Math.round(lastKnown.accuracy)}m shared GPS`) : (isPlusCodeActive && activePlusCodeFix) ? `±${activePlusCodeFix.accuracyMeters}m code-cell estimate` : result.subAllocation ? 'Regional exchange · approximate' : 'Approximate'}
                 </span>
               </div>
               <p className="text-xs text-slate-300 leading-relaxed max-w-3xl">
@@ -412,7 +458,7 @@ export const PhoneLookupView: React.FC<PhoneLookupViewProps> = ({
                   </span>
                 ) : (isPlusCodeActive && activePlusCodeFix) ? (
                   <span>
-                    Location from Plus Code: <strong className="text-cyan-200 font-mono">{activePlusCodeFix.shortCode}</strong> (Full global code: <code className="text-cyan-300 font-mono">{activePlusCodeFix.fullCode}</code>). The pin is dropped directly at <strong className="text-emerald-300 font-mono">{activePlusCodeFix.lat.toFixed(5)}, {activePlusCodeFix.lng.toFixed(5)}</strong> ({activePlusCodeFix.locality}) with building/street precision.
+                    Location decoded from Plus Code: <strong className="text-cyan-200 font-mono">{activePlusCodeFix.shortCode}</strong> (full code: <code className="text-cyan-300 font-mono">{activePlusCodeFix.fullCode}</code>). The map marks the centre of the encoded area at <strong className="text-emerald-300 font-mono">{activePlusCodeFix.lat.toFixed(5)}, {activePlusCodeFix.lng.toFixed(5)}</strong>. The displayed uncertainty is based on code-cell size, not a live GPS fix.
                   </span>
                 ) : result.subAllocation ? (
                   <span>
@@ -420,7 +466,7 @@ export const PhoneLookupView: React.FC<PhoneLookupViewProps> = ({
                   </span>
                 ) : !inputNumber.trim() ? (
                   <span>
-                    A phone number only reveals its carrier and country or region, not where the handset is. For the true position of a device, use its own GPS (Track Real GPS) or a tracking link the owner agrees to open.
+                    A phone number only reveals its carrier and country or region, not where the handset is. For the current position of this browser/device, use Locate this device or a tracking link the owner agrees to open.
                   </span>
                 ) : (
                   <span>
@@ -435,7 +481,7 @@ export const PhoneLookupView: React.FC<PhoneLookupViewProps> = ({
           <div className="flex flex-wrap items-center gap-2 shrink-0">
             {liveGpsFix ? (
               <button
-                onClick={() => setLiveGpsFix(null)}
+                onClick={clearLiveGpsFix}
                 className="px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold rounded-lg transition-colors border border-slate-700 shadow-sm flex items-center gap-2"
               >
                 <RefreshCw className="w-3.5 h-3.5 text-cyan-400" />
@@ -447,7 +493,7 @@ export const PhoneLookupView: React.FC<PhoneLookupViewProps> = ({
                   <button
                     onClick={() => {
                       setIsPlusCodeActive(!isPlusCodeActive);
-                      setLiveGpsFix(null);
+                      clearLiveGpsFix();
                     }}
                     className={`px-3 py-2.5 rounded-lg text-xs font-semibold transition-colors border flex items-center gap-1.5 whitespace-nowrap shadow-sm ${
                       isPlusCodeActive
@@ -483,7 +529,7 @@ export const PhoneLookupView: React.FC<PhoneLookupViewProps> = ({
         <details open={!!activePlusCodeFix} className="bg-slate-950 rounded-xl border border-slate-800">
           <summary className="cursor-pointer select-none px-3.5 py-3 flex items-center gap-2 text-sm font-semibold text-slate-200">
             <MapPin className="w-4 h-4 text-cyan-400" aria-hidden="true" />
-            <span>Pin an exact spot with a Plus Code</span>
+            <span>Pin an area with a Plus Code</span>
             {activePlusCodeFix && <span className="ml-auto text-xs font-mono text-cyan-200">{activePlusCodeFix.shortCode}</span>}
           </summary>
           <div className="px-3.5 pb-3.5 space-y-2.5">
@@ -529,7 +575,7 @@ export const PhoneLookupView: React.FC<PhoneLookupViewProps> = ({
                 <span className="text-cyan-300 font-bold">{activePlusCodeFix.fullCode}</span>
               </div>
               <div>
-                <span className="text-slate-400 block font-sans text-[10px]">Exact Coordinates:</span>
+                <span className="text-slate-400 block font-sans text-[10px]">Cell Center:</span>
                 <span className="text-emerald-400 font-bold">{activePlusCodeFix.lat.toFixed(5)}, {activePlusCodeFix.lng.toFixed(5)}</span>
               </div>
               <div>
@@ -801,7 +847,7 @@ export const PhoneLookupView: React.FC<PhoneLookupViewProps> = ({
 
         {/* Right Column: Interactive Folium Leaflet Map (7 Cols) */}
         <div className="lg:col-span-7 flex flex-col">
-          <FoliumMapView result={activeCoordinatesResult} onExportHtml={onExportHtml} />
+          <FoliumMapView result={activeCoordinatesResult} />
         </div>
 
       </div>

@@ -17,13 +17,23 @@ const PastePanel: React.FC<{ onSavePasted: (text: string) => Promise<string | nu
   const [busy, setBusy] = useState(false);
 
   const save = async () => {
+    if (!text.trim() || busy) return;
     setBusy(true);
-    const error = await onSavePasted(text);
-    setBusy(false);
-    if (error) setMessage({ ok: false, text: error });
-    else {
-      setMessage({ ok: true, text: 'Saved as the last known location.' });
-      setText('');
+    setMessage(null);
+    try {
+      const error = await onSavePasted(text);
+      if (error) setMessage({ ok: false, text: error });
+      else {
+        setMessage({ ok: true, text: 'Saved as the last known location.' });
+        setText('');
+      }
+    } catch (err) {
+      setMessage({
+        ok: false,
+        text: err instanceof Error ? err.message : 'Could not save the pasted location. Please try again.',
+      });
+    } finally {
+      setBusy(false);
     }
   };
 

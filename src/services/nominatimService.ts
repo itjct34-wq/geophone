@@ -75,9 +75,13 @@ export async function searchOpenStreetMap(
       },
     });
 
-    if (!response.ok) return [];
+    if (!response.ok) {
+      // Nominatim may throttle or reject direct browser requests; try the independent Photon index.
+      return searchPhoton(clean);
+    }
 
     const data = await response.json();
+    if (!Array.isArray(data)) return searchPhoton(clean);
     return data.map((item: any) => ({
       displayName: item.display_name,
       lat: parseFloat(item.lat),

@@ -18,11 +18,13 @@ export const GodEyeView: React.FC<GodEyeViewProps> = ({ target }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
   const markerRef = useRef<maplibregl.Marker | null>(null);
+  const myLocationMarkerRef = useRef<maplibregl.Marker | null>(null);
   const spinRef = useRef<number | null>(null);
   const [terrainOn, setTerrainOn] = useState(true);
   const [labelsOn, setLabelsOn] = useState(true);
   const [spinning, setSpinning] = useState(false);
   const [myPosError, setMyPosError] = useState('');
+  const [isLocatingMe, setIsLocatingMe] = useState(false);
 
   // Create the globe once
   useEffect(() => {
@@ -76,6 +78,9 @@ export const GodEyeView: React.FC<GodEyeViewProps> = ({ target }) => {
     return () => {
       if (spinRef.current !== null) cancelAnimationFrame(spinRef.current);
       markerRef.current?.remove();
+      myLocationMarkerRef.current?.remove();
+      markerRef.current = null;
+      myLocationMarkerRef.current = null;
       map.remove();
       mapRef.current = null;
     };
@@ -93,21 +98,29 @@ export const GodEyeView: React.FC<GodEyeViewProps> = ({ target }) => {
     map.flyTo({ center: [target.lng, target.lat], zoom: 13, pitch: 60, bearing: -20, duration: 4500, essential: true });
   }, [target]);
 
-  // Toggles
+  // Toggles: remove pending load handlers when the control changes before map load.
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
     const apply = () => map.setTerrain(terrainOn ? { source: 'dem', exaggeration: 1.5 } : null);
-    if (map.isStyleLoaded()) apply();
-    else map.once('load', apply);
+    if (map.isStyleLoaded()) {
+      apply();
+      return;
+    }
+    map.on('load', apply);
+    return () => { map.off('load', apply); };
   }, [terrainOn]);
 
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
     const apply = () => map.setLayoutProperty('labels', 'visibility', labelsOn ? 'visible' : 'none');
-    if (map.isStyleLoaded()) apply();
-    else map.once('load', apply);
+    if (map.isStyleLoaded()) {
+      apply();
+      return;
+    }
+    map.on('load', apply);
+    return () => { map.off('load', apply); };
   }, [labelsOn]);
 
   // Slow orbit around the current centre
@@ -138,22 +151,43 @@ export const GodEyeView: React.FC<GodEyeViewProps> = ({ target }) => {
       setMyPosError('Geolocation is not supported by this browser.');
       return;
     }
+    if (isLocatingMe) return;
+    setIsLocatingMe(true);
     navigator.geolocation.getCurrentPosition(
-      (pos) =>
-        mapRef.current?.flyTo({
-          center: [pos.coords.longitude, pos.coords.latitude],
-          zoom: 15,
-          pitch: 65,
-          duration: 4000,
-          essential: true,
-        }),
-      (err) =>
+      (pos) => {
+        const map = mapRef.current;
+        if (map) {
+          myLocationMarkerRef.current?.remove();
+          myLocationMarkerRef.current = new maplibregl.Marker({ color: '#f97316' })
+            .setLngLat([pos.coords.longitude, pos.coords.latitude])
+            .setPopup(
+              new maplibregl.Popup({ offset: 24 }).setText(
+                `Your browser-reported location (accuracy ±${Math.round(pos.coords.accuracy)} m). Accuracy varies by device and environment.`,
+              ),
+            )
+            .addTo(map);
+          myLocationMarkerRef.current.togglePopup();
+          map.flyTo({
+            center: [pos.coords.longitude, pos.coords.latitude],
+            zoom: 15,
+            pitch: 65,
+            duration: 4000,
+            essential: true,
+          });
+        }
+        setIsLocatingMe(false);
+      },
+      (err) => {
         setMyPosError(
           err.code === err.PERMISSION_DENIED
             ? 'Location permission was denied.'
+            : err.code === err.TIMEOUT
+            ? 'Location request timed out. Check your device location services and try again.'
             : 'Could not get your position.',
-        ),
-      { enableHighAccuracy: true, timeout: 15000 },
+        );
+        setIsLocatingMe(false);
+      },
+      { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 },
     );
   };
 
@@ -195,9 +229,9 @@ export const GodEyeView: React.FC<GodEyeViewProps> = ({ target }) => {
             <Globe2 className="w-3.5 h-3.5" />
             <span>Whole Earth</span>
           </button>
-          <button onClick={flyToMe} className={toggleClass(false)}>
-            <LocateFixed className="w-3.5 h-3.5" />
-            <span>My location</span>
+          <button onClick={flyToMe} disabled={isLocatingMe} aria-busy={isLocatingMe} className={`${toggleClass(false)} disabled:opacity-50 disabled:cursor-wait`}>
+            <LocateFixed className={`w-3.5 h-3.5 ${isLocatingMe ? 'animate-pulse' : ''}`} />
+            <span>{isLocatingMe ? 'Locating…' : 'My location'}</span>
           </button>
         </div>
       </div>

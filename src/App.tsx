@@ -16,10 +16,10 @@ import { AdminView } from './components/AdminView';
 import { LockedFeature } from './components/LockedFeature';
 import { InvestigationCenter } from './components/InvestigationCenter';
 import { PublicSourceOsintView } from './components/PublicSourceOsintView';
+import { PublicResourceHub } from './components/PublicResourceHub';
 import { useAuth } from './auth/AuthContext';
 const GodEyeView = lazy(() => import('./components/GodEyeView').then((m) => ({ default: m.GodEyeView })));
 import { parsePhoneNumber } from './services/phoneParser';
-import { generateFoliumHtml } from './services/pythonScriptGenerator';
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<TabId>('lookup');
@@ -68,27 +68,13 @@ export default function App() {
       const target = params.get('track_target');
       const mode = params.get('mode');
       if (target) {
-        setInputNumber(decodeURIComponent(target));
+        setInputNumber(target);
       }
       if (mode === 'live_gps') {
         setActiveTab('live_gps');
       }
     }
   }, []);
-
-  // Export standalone Folium HTML
-  const handleExportHtml = () => {
-    const html = generateFoliumHtml(phoneResult);
-    const blob = new Blob([html], { type: 'text/html' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `location_${phoneResult.e164 || 'phone'}.html`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-  };
 
   const handleSelectBatchNumber = (num: string) => {
     setInputNumber(num);
@@ -107,8 +93,11 @@ export default function App() {
             inputNumber={inputNumber}
             setInputNumber={setInputNumber}
             result={phoneResult}
-                onExportHtml={handleExportHtml}
             onSwitchTab={setActiveTab}
+            onOpenGodEye={(target) => {
+              setGlobeOverride(target);
+              setActiveTab('god_eye');
+            }}
           />
         )}
 
@@ -152,6 +141,8 @@ export default function App() {
         {activeTab === 'investigations' && <InvestigationCenter />}
 
         {activeTab === 'public_osint' && <PublicSourceOsintView />}
+
+        {activeTab === 'resource_hub' && <PublicResourceHub />}
 
         {activeTab === 'plan' && !isAdmin && <PlanView />}
 

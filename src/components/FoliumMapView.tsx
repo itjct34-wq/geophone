@@ -22,15 +22,18 @@ import {
   OpenSourcePlace
 } from '../services/nominatimService';
 
+const escapePopupHtml = (value: unknown): string =>
+  String(value ?? '').replace(/[&<>"']/g, (ch) => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
+  }[ch] ?? ch));
+
 interface FoliumMapViewProps {
   result: PhoneLookupResult;
-  onExportHtml: () => void;
   onLocationSelected?: (place: { lat: number; lng: number; displayName: string }) => void;
 }
 
 export const FoliumMapView: React.FC<FoliumMapViewProps> = ({
   result,
-  onExportHtml,
   onLocationSelected,
 }) => {
   const mapContainerRef = useRef<HTMLDivElement>(null);
@@ -48,6 +51,11 @@ export const FoliumMapView: React.FC<FoliumMapViewProps> = ({
   const [isSearching, setIsSearching] = useState(false);
   const [searchResults, setSearchResults] = useState<OpenSourcePlace[]>([]);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
+  const [searchError, setSearchError] = useState('');
+  const searchRequestRef = useRef(0);
+  const clickRequestRef = useRef(0);
+  const lastTargetKeyRef = useRef('');
+  const resizeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [inspectedPlace, setInspectedPlace] = useState<{
     lat: number;
     lng: number;
@@ -96,23 +104,36 @@ export const FoliumMapView: React.FC<FoliumMapViewProps> = ({
     }
   };
 
-  // Handle Open-Source Search input
+  // Handle Open-Source Search input. Ignore stale responses if a newer query was submitted.
   const handleSearchSubmit = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
-    if (!searchQuery.trim()) return;
+    const query = searchQuery.trim();
+    if (query.length < 2 || isSearching) return;
 
+    const requestId = ++searchRequestRef.current;
     setIsSearching(true);
     setIsSearchOpen(true);
+    setSearchError('');
+    setSearchResults([]);
     try {
-      const places = await searchOpenStreetMap(searchQuery, 'pk');
+      // Search globally rather than silently restricting results to Pakistan.
+      const places = await searchOpenStreetMap(query);
+      if (requestId !== searchRequestRef.current) return;
       setSearchResults(places);
+      if (places.length === 0) setSearchError('No matching places found. Try a fuller address or nearby city.');
+    } catch (err) {
+      if (requestId === searchRequestRef.current) {
+        setSearchError(err instanceof Error ? err.message : 'Place search failed. Please try again.');
+      }
     } finally {
-      setIsSearching(false);
+      if (requestId === searchRequestRef.current) setIsSearching(false);
     }
   };
 
   // Select place from open-source search results
   const handleSelectPlace = (place: OpenSourcePlace) => {
+    clickRequestRef.current += 1;
+    setSearchError('');
     setSearchResults([]);
     setIsSearchOpen(false);
     setSearchQuery(place.displayName.split(',')[0]);
@@ -146,7 +167,7 @@ export const FoliumMapView: React.FC<FoliumMapViewProps> = ({
       m.bindPopup(`
         <div style="font-family: inherit; font-size: 13px; max-width: 220px;">
           <div style="font-weight: 700; color: #10b981; margin-bottom: 4px;">OpenStreetMap Match</div>
-          <div style="color: #0f172a; font-size: 12px; margin-bottom: 6px;">${place.displayName}</div>
+          <div style="color: #0f172a; font-size: 12px; margin-bottom: 6px;">${escapePopupHtml(place.displayName)}</div>
           <div style="font-size: 11px; color: #64748b; font-family: monospace;">${place.lat.toFixed(5)}, ${place.lng.toFixed(5)}</div>
         </div>
       `).openPopup();
@@ -168,8 +189,8 @@ export const FoliumMapView: React.FC<FoliumMapViewProps> = ({
 
     if (!mapInstanceRef.current) {
       const map = L.map(mapContainerRef.current, {
-        center: [result.coordinates.lat, result.coordinates.lng],
-        zoom: 9,
+        center: result.isValid ? [result.coordinates.lat, result.coordinates.lng] : [20, 20],
+        zoom: result.isValid ? 9 : 1.6,
         zoomControl: false,
       });
 
@@ -182,6 +203,7 @@ export const FoliumMapView: React.FC<FoliumMapViewProps> = ({
 
       // Click to reverse-geocode anywhere on the map
       map.on('click', async (e: L.LeafletMouseEvent) => {
+        const requestId = ++clickRequestRef.current;
         const { lat, lng } = e.latlng;
 
         if (clickMarkerRef.current) {
@@ -210,7 +232,13 @@ export const FoliumMapView: React.FC<FoliumMapViewProps> = ({
         clickMarkerRef.current = tempMarker;
 
         // Fetch OpenStreetMap Nominatim reverse geocode
-        const place = await reverseGeocodeOpenStreetMap(lat, lng);
+        let place: OpenSourcePlace | null = null;
+        try {
+          place = await reverseGeocodeOpenStreetMap(lat, lng);
+        } catch {
+          // Keep the coordinate marker usable even when the reverse-geocoder is unavailable.
+        }
+        if (requestId !== clickRequestRef.current || clickMarkerRef.current !== tempMarker) return;
         const name = place ? place.displayName : `Point at ${lat.toFixed(4)}, ${lng.toFixed(4)}`;
 
         setInspectedPlace({ lat, lng, name });
@@ -218,7 +246,7 @@ export const FoliumMapView: React.FC<FoliumMapViewProps> = ({
         tempMarker.setPopupContent(`
           <div style="font-family: inherit; font-size: 13px; max-width: 240px;">
             <div style="font-weight: 700; color: #8b5cf6; margin-bottom: 4px;">OpenStreetMap Reverse Geocode</div>
-            <div style="color: #0f172a; font-size: 12px; line-height: 1.4; margin-bottom: 6px;">${name}</div>
+            <div style="color: #0f172a; font-size: 12px; line-height: 1.4; margin-bottom: 6px;">${escapePopupHtml(name)}</div>
             <div style="font-size: 11px; color: #64748b; font-family: monospace; border-top: 1px solid #e2e8f0; padding-top: 4px;">
               ${lat.toFixed(6)}, ${lng.toFixed(6)}
             </div>
@@ -230,17 +258,6 @@ export const FoliumMapView: React.FC<FoliumMapViewProps> = ({
     }
 
     const map = mapInstanceRef.current;
-    const tileConfig = getTileConfig(activeLayer);
-
-    if (tileLayerRef.current) {
-      map.removeLayer(tileLayerRef.current);
-    }
-
-    const newTileLayer = L.tileLayer(tileConfig.url, {
-      attribution: tileConfig.attribution,
-      maxZoom: tileConfig.maxZoom,
-    }).addTo(map);
-    tileLayerRef.current = newTileLayer;
 
     // Pin icon for Folium phone target
     const customIcon = L.divIcon({
@@ -257,7 +274,32 @@ export const FoliumMapView: React.FC<FoliumMapViewProps> = ({
     });
 
     // A country-level result has no real position, so it is drawn as an area, not a pin
-    const countryOnly = result.coordinates.isApproximate && result.coordinates.accuracyKm >= 100;
+    const countryOnly = result.isValid && result.coordinates.isApproximate && result.coordinates.accuracyKm >= 100;
+    const targetKey = !result.isValid
+      ? 'invalid-input'
+      : [
+          result.coordinates.lat.toFixed(6),
+          result.coordinates.lng.toFixed(6),
+          result.coordinates.accuracyKm,
+          countryOnly ? 'area' : 'point',
+        ].join('|');
+    const targetChanged = lastTargetKeyRef.current !== targetKey;
+
+    // Invalid phone input has no location. Do not plot the parser's fallback centre as if it were a result.
+    if (!result.isValid) {
+      markerRef.current?.remove();
+      markerRef.current = null;
+      circleRef.current?.remove();
+      circleRef.current = null;
+      if (targetChanged) map.setView([20, 20], 1.6, { animate: true });
+      lastTargetKeyRef.current = targetKey;
+      if (resizeTimerRef.current !== null) clearTimeout(resizeTimerRef.current);
+      resizeTimerRef.current = setTimeout(() => {
+        if (mapInstanceRef.current === map) map.invalidateSize();
+        resizeTimerRef.current = null;
+      }, 150);
+      return;
+    }
 
     if (countryOnly) {
       markerRef.current?.remove();
@@ -268,58 +310,116 @@ export const FoliumMapView: React.FC<FoliumMapViewProps> = ({
       markerRef.current = L.marker([result.coordinates.lat, result.coordinates.lng], { icon: customIcon }).addTo(map);
     }
 
+    const accuracyText = result.coordinates.accuracyKm <= 0
+      ? 'Accuracy not reported'
+      : result.coordinates.accuracyKm < 1
+      ? `~${Math.round(result.coordinates.accuracyKm * 1000)} m radius`
+      : `~${result.coordinates.accuracyKm} km radius`;
     const popupContent = `
       <div style="font-family: inherit; font-size: 13px; min-width: 200px;">
         <div style="font-weight: 700; font-size: 14px; color: #38bdf8; margin-bottom: 4px;">
-          ${result.international || result.rawInput}
+          ${escapePopupHtml(result.international || result.rawInput)}
         </div>
         <div style="color: #94a3b8; font-size: 12px; margin-bottom: 8px;">
-          ${result.carrier}
+          ${escapePopupHtml(result.carrier)}
         </div>
         <div style="display: flex; flex-direction: column; gap: 4px; border-top: 1px solid #334155; padding-top: 6px;">
-          <div><b>Region:</b> ${result.regionOrCity}</div>
-          <div><b>Country:</b> ${result.countryName}</div>
+          <div><b>Region:</b> ${escapePopupHtml(result.regionOrCity)}</div>
+          <div><b>Country:</b> ${escapePopupHtml(result.countryName)}</div>
           <div><b>Coordinates:</b> ${result.coordinates.lat.toFixed(4)}, ${result.coordinates.lng.toFixed(4)}</div>
-          <div><b>Accuracy:</b> ~${result.coordinates.accuracyKm} km radius</div>
+          <div><b>Accuracy:</b> ${accuracyText}</div>
         </div>
       </div>
     `;
 
     markerRef.current?.bindPopup(popupContent);
 
-    // Update or add circle
-    const radiusMeters = (result.coordinates.accuracyKm || 25) * 1000;
-    if (circleRef.current) {
-      circleRef.current.setLatLng([result.coordinates.lat, result.coordinates.lng]);
-      circleRef.current.setRadius(radiusMeters);
-    } else {
-      circleRef.current = L.circle([result.coordinates.lat, result.coordinates.lng], {
-        radius: radiusMeters,
-        color: '#06b6d4',
-        fillColor: '#0891b2',
-        fillOpacity: 0.15,
-        weight: 1.5,
-        dashArray: countryOnly ? '6, 6' : undefined,
-      }).addTo(map);
-    }
-    circleRef.current.setStyle({ dashArray: countryOnly ? '6, 6' : undefined, fillOpacity: countryOnly ? 0.08 : 0.15 });
-    circleRef.current.bindPopup(popupContent);
-
-    if (countryOnly) {
-      map.fitBounds(circleRef.current.getBounds(), { animate: true });
-    } else {
-      const targetZoom = result.coordinates.accuracyKm < 0.1 ? 16 : result.coordinates.accuracyKm < 5 ? 13 : result.coordinates.accuracyKm < 50 ? 11 : 8;
-      map.setView([result.coordinates.lat, result.coordinates.lng], targetZoom, { animate: true });
+    // Draw an uncertainty circle only when its radius is known or estimated by the source.
+    const radiusMeters = result.coordinates.accuracyKm > 0 ? result.coordinates.accuracyKm * 1000 : 0;
+    if (radiusMeters > 0) {
+      if (circleRef.current) {
+        circleRef.current.setLatLng([result.coordinates.lat, result.coordinates.lng]);
+        circleRef.current.setRadius(radiusMeters);
+      } else {
+        circleRef.current = L.circle([result.coordinates.lat, result.coordinates.lng], {
+          radius: radiusMeters,
+          color: '#06b6d4',
+          fillColor: '#0891b2',
+          fillOpacity: 0.15,
+          weight: 1.5,
+          dashArray: countryOnly ? '6, 6' : undefined,
+        }).addTo(map);
+      }
+      circleRef.current.setStyle({ dashArray: countryOnly ? '6, 6' : undefined, fillOpacity: countryOnly ? 0.08 : 0.15 });
+      circleRef.current.bindPopup(popupContent);
+    } else if (circleRef.current) {
+      map.removeLayer(circleRef.current);
+      circleRef.current = null;
     }
 
-    setTimeout(() => {
-      map.invalidateSize();
+    // Keep the user's pan/zoom when only labels or "last seen" time update.
+    if (targetChanged) {
+      if (countryOnly && circleRef.current) {
+        map.fitBounds(circleRef.current.getBounds(), { animate: true });
+      } else {
+        const targetZoom = result.coordinates.accuracyKm < 0.1 ? 16 : result.coordinates.accuracyKm < 5 ? 13 : result.coordinates.accuracyKm < 50 ? 11 : 8;
+        map.setView([result.coordinates.lat, result.coordinates.lng], targetZoom, { animate: true });
+      }
+      lastTargetKeyRef.current = targetKey;
+    }
+
+    if (resizeTimerRef.current !== null) clearTimeout(resizeTimerRef.current);
+    resizeTimerRef.current = setTimeout(() => {
+      if (mapInstanceRef.current === map) map.invalidateSize();
+      resizeTimerRef.current = null;
     }, 150);
 
-  }, [result, activeLayer]);
+  }, [result]);
+
+  // Changing a base layer must not reset the user's current centre or zoom.
+  useEffect(() => {
+    const map = mapInstanceRef.current;
+    if (!map) return;
+    const tileConfig = getTileConfig(activeLayer);
+    tileLayerRef.current?.remove();
+    tileLayerRef.current = L.tileLayer(tileConfig.url, {
+      attribution: tileConfig.attribution,
+      maxZoom: tileConfig.maxZoom,
+    }).addTo(map);
+    if (resizeTimerRef.current !== null) clearTimeout(resizeTimerRef.current);
+    resizeTimerRef.current = setTimeout(() => {
+      if (mapInstanceRef.current === map) map.invalidateSize();
+      resizeTimerRef.current = null;
+    }, 100);
+    return () => {
+      if (resizeTimerRef.current !== null) {
+        clearTimeout(resizeTimerRef.current);
+        resizeTimerRef.current = null;
+      }
+    };
+  }, [activeLayer]);
+
+  // Leaflet owns DOM listeners and tile requests; dispose the map when this view unmounts.
+  useEffect(() => () => {
+    clickRequestRef.current += 1;
+    if (resizeTimerRef.current !== null) {
+      clearTimeout(resizeTimerRef.current);
+      resizeTimerRef.current = null;
+    }
+    mapInstanceRef.current?.remove();
+    mapInstanceRef.current = null;
+    markerRef.current = null;
+    circleRef.current = null;
+    tileLayerRef.current = null;
+    clickMarkerRef.current = null;
+  }, []);
 
   const handleRecenter = () => {
     if (mapInstanceRef.current) {
+      if (!result.isValid) {
+        mapInstanceRef.current.setView([20, 20], 1.6, { animate: true });
+        return;
+      }
       if (circleRef.current && result.coordinates.isApproximate && result.coordinates.accuracyKm >= 100) {
         mapInstanceRef.current.fitBounds(circleRef.current.getBounds(), { animate: true });
         return;
@@ -330,6 +430,7 @@ export const FoliumMapView: React.FC<FoliumMapViewProps> = ({
   };
 
   const handleDownloadHtml = () => {
+    if (!result.isValid) return;
     const html = generateFoliumHtml(result);
     const blob = new Blob([html], { type: 'text/html' });
     const url = URL.createObjectURL(blob);
@@ -339,7 +440,7 @@ export const FoliumMapView: React.FC<FoliumMapViewProps> = ({
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
-    URL.revokeObjectURL(url);
+    window.setTimeout(() => URL.revokeObjectURL(url), 1000);
   };
 
   return (
@@ -350,34 +451,46 @@ export const FoliumMapView: React.FC<FoliumMapViewProps> = ({
         {/* OpenStreetMap Search Bar */}
         <div className="pointer-events-auto relative w-full sm:w-72">
           <form onSubmit={handleSearchSubmit} className="relative">
-            <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-2.5" />
+            <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-2.5" aria-hidden="true" />
             <input
               type="text"
               value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              onFocus={() => { if (searchResults.length > 0) setIsSearchOpen(true); }}
-              placeholder="Search place or Plus Code (e.g. XXXX+XX City)..."
-              className="w-full pl-8 pr-8 py-1.5 bg-slate-900/95 backdrop-blur-md border border-slate-800 rounded-lg text-xs text-slate-100 placeholder-slate-400 focus:outline-none focus:border-cyan-500 shadow-lg"
+              onChange={(e) => {
+                searchRequestRef.current += 1;
+                setSearchQuery(e.target.value);
+                setSearchResults([]);
+                setSearchError('');
+                setIsSearchOpen(false);
+                setIsSearching(false);
+              }}
+              onFocus={() => { if (searchResults.length > 0 || searchError) setIsSearchOpen(true); }}
+              placeholder="Search place or Plus Code..."
+              aria-label="Search any place or Plus Code"
+              className="w-full pl-8 pr-16 py-1.5 bg-slate-900/95 backdrop-blur-md border border-slate-800 rounded-lg text-xs text-slate-100 placeholder-slate-400 focus:outline-none focus:border-cyan-500 shadow-lg"
             />
+            <button type="submit" disabled={isSearching || searchQuery.trim().length < 2} title="Search places"
+              className="absolute right-8 top-1 text-cyan-300 hover:text-cyan-100 disabled:text-slate-600 disabled:cursor-not-allowed"
+              aria-label="Search places">
+              {isSearching ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Search className="w-3.5 h-3.5" />}
+            </button>
             {searchQuery && (
-              <button
-                type="button"
-                onClick={() => { setSearchQuery(''); setSearchResults([]); setIsSearchOpen(false); }}
-                className="absolute right-2.5 top-2 text-slate-400 hover:text-slate-200"
-              >
+              <button type="button"
+                onClick={() => { searchRequestRef.current += 1; setSearchQuery(''); setSearchResults([]); setSearchError(''); setIsSearchOpen(false); }}
+                className="absolute right-2.5 top-1 text-slate-400 hover:text-slate-200" aria-label="Clear search">
                 <X className="w-3.5 h-3.5" />
               </button>
             )}
           </form>
+          {searchError && <p role="alert" className="mt-1 rounded-md border border-rose-900/60 bg-slate-950/95 px-2 py-1.5 text-[11px] text-rose-300">{searchError}</p>}
 
           {/* Autocomplete Dropdown */}
           {isSearchOpen && searchResults.length > 0 && (
             <div className="absolute top-full mt-1.5 left-0 right-0 bg-slate-900/95 backdrop-blur-md border border-slate-800 rounded-lg shadow-xl overflow-hidden divide-y divide-slate-800 max-h-60 overflow-y-auto text-xs z-50">
-              {searchResults.map((p, idx) => (
-                <div
-                  key={idx}
+              {searchResults.map((p) => (
+                <button type="button"
+                  key={`${p.displayName}-${p.lat}-${p.lng}`}
                   onClick={() => handleSelectPlace(p)}
-                  className="p-2.5 hover:bg-slate-800/80 cursor-pointer flex items-start gap-2 transition-colors"
+                  className="w-full text-left p-2.5 hover:bg-slate-800/80 cursor-pointer flex items-start gap-2 transition-colors"
                 >
                   <MapPin className="w-3.5 h-3.5 text-cyan-400 shrink-0 mt-0.5" />
                   <div className="space-y-0.5 min-w-0">
@@ -386,7 +499,7 @@ export const FoliumMapView: React.FC<FoliumMapViewProps> = ({
                       {p.lat.toFixed(4)}, {p.lng.toFixed(4)} · {p.type}
                     </div>
                   </div>
-                </div>
+                </button>
               ))}
             </div>
           )}
@@ -449,7 +562,7 @@ export const FoliumMapView: React.FC<FoliumMapViewProps> = ({
           {/* Action Controls */}
           <button
             onClick={handleRecenter}
-            title="Center Map on Target Coordinates"
+            title={result.isValid ? "Center Map on Target Coordinates" : "No valid phone location to center on"}
             className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium bg-slate-900/90 backdrop-blur-md text-slate-200 hover:text-cyan-400 border border-slate-800 rounded-lg shadow-lg transition-colors whitespace-nowrap shrink-0"
           >
             <LocateFixed className="w-3.5 h-3.5" />
@@ -457,8 +570,9 @@ export const FoliumMapView: React.FC<FoliumMapViewProps> = ({
           </button>
           <button
             onClick={handleDownloadHtml}
-            title="Download Standalone Folium HTML Map"
-            className="flex items-center gap-1 px-3 py-1.5 text-xs bg-cyan-500 text-slate-950 hover:bg-cyan-400 font-semibold rounded-lg shadow-lg transition-colors whitespace-nowrap shrink-0"
+            disabled={!result.isValid}
+            title={result.isValid ? "Download Standalone Folium HTML Map" : "Enter a valid phone number before exporting a location map"}
+            className="flex items-center gap-1 px-3 py-1.5 text-xs bg-cyan-500 text-slate-950 hover:bg-cyan-400 disabled:opacity-40 disabled:cursor-not-allowed font-semibold rounded-lg shadow-lg transition-colors whitespace-nowrap shrink-0"
           >
             <Download className="w-3.5 h-3.5" />
             <span>Export HTML</span>
@@ -482,8 +596,10 @@ export const FoliumMapView: React.FC<FoliumMapViewProps> = ({
             <span aria-hidden="true">·</span>
             <span>Zoom {zoomLevel}x</span>
           </div>
-          {result.coordinates.isApproximate && result.coordinates.accuracyKm >= 100 ? (
-            <div className="text-slate-300">Country level only: no exact position</div>
+          {!result.isValid ? (
+            <div className="text-amber-300">No map location: enter a valid phone number or search for a place.</div>
+          ) : result.coordinates.isApproximate && result.coordinates.accuracyKm >= 100 ? (
+            <div className="text-slate-300">Country level only: no handset position</div>
           ) : (
             <div className="flex items-center gap-2 font-mono tabular-nums text-slate-300">
               <span>{result.coordinates.lat.toFixed(4)}°</span>
@@ -495,7 +611,7 @@ export const FoliumMapView: React.FC<FoliumMapViewProps> = ({
             </div>
           )}
           <div className="text-[11px] text-slate-400 truncate">
-            {inspectedPlace ? inspectedPlace.name : result.coordinates.displayName}
+            {!result.isValid && !inspectedPlace ? 'Search for a place or enter a valid number.' : inspectedPlace ? inspectedPlace.name : result.coordinates.displayName}
           </div>
           <div className="text-[10px] text-slate-500 pt-0.5 border-t border-slate-800">
             Tip: Click anywhere on map to reverse-geocode with OpenStreetMap

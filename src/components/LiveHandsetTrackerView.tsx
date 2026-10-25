@@ -63,6 +63,17 @@ import {
   writeManualTowers,
 } from '../services/manualTowers';
 
+const escapePopupHtml = (value: unknown): string =>
+  String(value ?? '').replace(/[&<>"']/g, (ch) => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
+  }[ch] ?? ch));
+
+const csvCell = (value: unknown): string => {
+  const text = String(value ?? '');
+  const safeText = /^[\t\r\n ]*[=+\-@]/.test(text) ? `'${text}` : text;
+  return `"${safeText.replace(/"/g, '""')}"`;
+};
+
 interface LiveHandsetTrackerViewProps {
   currentNumber: string;
 }
@@ -115,12 +126,14 @@ export const LiveHandsetTrackerView: React.FC<LiveHandsetTrackerViewProps> = ({ 
   const [focusShareId, setFocusShareId] = useState<string | null>(null);
   const lastFitKeyRef = useRef('');
   const [copiedCode, setCopiedCode] = useState(false);
+  const [clipboardError, setClipboardError] = useState('');
 
   // Map References
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<L.Map | null>(null);
   const layerGroupRef = useRef<L.LayerGroup | null>(null);
   const tileLayerRef = useRef<L.TileLayer | null>(null);
+  const resizeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Filtered User Cells
   const filteredUserCells = React.useMemo(() => {
@@ -166,10 +179,16 @@ export const LiveHandsetTrackerView: React.FC<LiveHandsetTrackerViewProps> = ({ 
     return () => clearInterval(timer);
   }, [activeTab, refreshShares]);
 
-  const handleCopyShare = (s: ShareSession) => {
-    navigator.clipboard.writeText(shareUrl(s.token));
-    setCopiedShareId(s.id);
-    setTimeout(() => setCopiedShareId(null), 2000);
+  const handleCopyShare = async (s: ShareSession) => {
+    setClipboardError('');
+    try {
+      if (!navigator.clipboard?.writeText) throw new Error('Clipboard access is unavailable.');
+      await navigator.clipboard.writeText(shareUrl(s.token));
+      setCopiedShareId(s.id);
+      window.setTimeout(() => setCopiedShareId((current) => current === s.id ? null : current), 2000);
+    } catch {
+      setClipboardError('Could not copy the share link automatically. Allow clipboard access or copy the link manually.');
+    }
   };
 
   const handleEndShare = async (s: ShareSession) => {
@@ -193,39 +212,22 @@ export const LiveHandsetTrackerView: React.FC<LiveHandsetTrackerViewProps> = ({ 
 
   const handleExportUserCellsCsv = () => {
     const headers = [
-      'CID',
-      'LAC_Area',
-      'MCC',
-      'MNC',
-      'Operator',
-      'Technology',
-      'Band',
-      'Code',
-      'Frequency',
-      'City',
-      'Region',
-      'Latitude',
-      'Longitude',
+      'CID', 'LAC_Area', 'MCC', 'MNC', 'Operator', 'Technology', 'Band',
+      'Code', 'Frequency', 'City', 'Region', 'Latitude', 'Longitude',
     ];
-
-    const rows = filteredUserCells.map((c) => [
-      c.cid,
-      c.lac,
-      c.mcc,
-      c.mnc,
-      `"${c.operatorName}"`,
-      `"${c.technology}"`,
-      `"${c.band}"`,
-      c.code,
-      c.frequency,
-      `"${c.city}"`,
-      `"${c.region}"`,
-      c.lat.toFixed(6),
-      c.lng.toFixed(6),
+    const rows = filteredUserCells.map((cell) => [
+      cell.cid, cell.lac, cell.mcc, cell.mnc, cell.operatorName, cell.technology,
+      cell.band, cell.code, cell.frequency, cell.city, cell.region,
+      cell.lat.toFixed(6), cell.lng.toFixed(6),
     ]);
-
-    const csvContent = [headers.join(','), ...rows.map((r) => r.join(','))].join('\n');
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const textFields = new Set([4, 5, 6, 7, 8, 9, 10]);
+    const csvContent = [
+      headers.map(csvCell).join(','),
+      ...rows.map((row) => row.map((value, index) =>
+        textFields.has(index) ? csvCell(value) : String(value ?? ''),
+      ).join(',')),
+    ].join('\r\n');
+    const blob = new Blob(['\uFEFF', csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
@@ -233,7 +235,7 @@ export const LiveHandsetTrackerView: React.FC<LiveHandsetTrackerViewProps> = ({ 
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
-    URL.revokeObjectURL(url);
+    window.setTimeout(() => URL.revokeObjectURL(url), 1000);
   };
 
   // Continuous device GPS (watchPosition) with a movement trail
@@ -419,13 +421,26 @@ export const LiveHandsetTrackerView: React.FC<LiveHandsetTrackerViewProps> = ({ 
   };
 
   const handleResolveRealTowers = () => {
-    const targets = (triangulationCells.length > 0 ? triangulationCells : userCells).filter((c) => c.isApproximate);
-    if (targets.length === 0) {
+    if (isResolving) return;
+    const candidates = (triangulationCells.length > 0 ? triangulationCells : userCells).filter((c) => c.isApproximate);
+    if (candidates.length === 0) {
       setResolveMessage('All selected towers already have real positions.');
       return;
     }
-    // Unwired Labs allows only a few lookups a day, so it is used for small selections only
-    return runResolve(targets, false, triangulationCells.length > 0 && triangulationCells.length <= 5);
+
+    // Keep provider requests bounded; select the specific cells first when possible.
+    const targets = candidates.slice(0, 5);
+    const omitted = candidates.length - targets.length;
+    const selectedCells = triangulationCells.length > 0;
+    const request = runResolve(targets, false, selectedCells);
+    if (omitted > 0) {
+      return request.then(() => {
+        setResolveMessage((message) =>
+          `${message || 'Tower lookup finished.'} Only the first 5 of ${candidates.length} approximate towers were requested to avoid excessive external lookups; select a smaller set for targeted results.`,
+        );
+      });
+    }
+    return request;
   };
 
   // Positions the user types in (from a survey, CellMapper, a site visit...)
@@ -453,12 +468,9 @@ export const LiveHandsetTrackerView: React.FC<LiveHandsetTrackerViewProps> = ({ 
     setManualMessage({ ok: true, text: 'Typed positions removed. Press Resolve to look the towers up again.' });
   };
 
-  // Automatically resolve every tower once when this view opens
-  const autoResolvedRef = useRef(false);
+  // Apply locally saved manual positions on entry. Network lookups are only run when requested.
   useEffect(() => {
-    if (autoResolvedRef.current) return;
-    autoResolvedRef.current = true;
-    runResolve(userCells, true);
+    setUserCells(applyEstimates(applyManualTowers(parseRawCellsJson(RAW_USER_CELLS_STRING))));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   // Tile layer configuration helper
@@ -593,15 +605,15 @@ print("[✓] Generated cells_survey_map.html with your cellular dump!")
         const m = L.marker([c.lat, c.lng], { icon }).addTo(group);
         m.bindPopup(`
           <div style="font-family: inherit; font-size: 12px; min-width: 200px;">
-            <div style="font-weight: bold; color: ${pinColor}; font-size: 13px;">${c.operatorName}</div>
-            <div style="color: #475569; margin: 3px 0;">${c.city} (${c.region})</div>
+            <div style="font-weight: bold; color: ${pinColor}; font-size: 13px;">${escapePopupHtml(c.operatorName)}</div>
+            <div style="color: #475569; margin: 3px 0;">${escapePopupHtml(c.city)} (${escapePopupHtml(c.region)})</div>
             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 4px; border-top: 1px solid #e2e8f0; padding-top: 5px; margin-top: 5px;">
               <div><b>Cell ID (CID):</b> ${c.cid}</div>
               <div><b>LAC / TAC:</b> ${c.lac}</div>
-              <div><b>Tech:</b> ${c.technology}</div>
-              <div><b>Band:</b> ${c.band}</div>
-              <div><b>Frequency:</b> ${c.frequency}</div>
-              <div><b>Code:</b> ${c.code}</div>
+              <div><b>Tech:</b> ${escapePopupHtml(c.technology)}</div>
+              <div><b>Band:</b> ${escapePopupHtml(c.band)}</div>
+              <div><b>Frequency:</b> ${escapePopupHtml(c.frequency)}</div>
+              <div><b>Code:</b> ${escapePopupHtml(c.code)}</div>
             </div>
           </div>
         `);
@@ -634,7 +646,7 @@ print("[✓] Generated cells_survey_map.html with your cellular dump!")
 
       L.marker([tower.lat, tower.lng], { icon: towerIcon }).addTo(group).bindPopup(`
         <div style="font-family: inherit; font-size: 12px;">
-          <b>${tower.cellName}</b><br/>
+          <b>${escapePopupHtml(tower.cellName)}</b><br/>
           CID: ${tower.cid} | LAC: ${tower.lac}
         </div>
       `).openPopup();
@@ -746,7 +758,7 @@ print("[✓] Generated cells_survey_map.html with your cellular dump!")
         })
           .addTo(group)
           .bindPopup(
-            `<b>${(s.label || 'Shared location').replace(/</g, '&lt;')}</b><br/>${at[0].toFixed(6)}, ${at[1].toFixed(6)}` +
+            `<b>${escapePopupHtml(s.label || 'Shared location')}</b><br/>${at[0].toFixed(6)}, ${at[1].toFixed(6)}` +
               `<br/>±${Math.round(s.last_accuracy ?? 0)} m<br/>${state === 'live' ? 'Live' : 'Last seen'} ${new Date(s.last_at as string).toLocaleTimeString()}`,
           );
       });
@@ -764,11 +776,51 @@ print("[✓] Generated cells_survey_map.html with your cellular dump!")
         }
       }
     }
-    setTimeout(() => map.invalidateSize(), 150);
-  }, [activeTab, filteredUserCells, selectedUserCell, selectedTower, deviceGps, gpsTrail, triangulationBasis, triangulationAnalysis, triangulationEstimate, shares, focusShareId, mapLayer]);
+    if (resizeTimerRef.current !== null) clearTimeout(resizeTimerRef.current);
+    resizeTimerRef.current = setTimeout(() => {
+      if (mapInstanceRef.current === map) map.invalidateSize();
+      resizeTimerRef.current = null;
+    }, 150);
+  }, [activeTab, filteredUserCells, selectedUserCell, selectedTower, deviceGps, gpsTrail, triangulationBasis, triangulationAnalysis, triangulationEstimate, shares, focusShareId]);
+
+  // Swap map tiles independently so changing the base layer does not reset the current view.
+  useEffect(() => {
+    const map = mapInstanceRef.current;
+    if (!map) return;
+    const tileConfig = getTileConfig(mapLayer);
+    tileLayerRef.current?.remove();
+    tileLayerRef.current = L.tileLayer(tileConfig.url, {
+      attribution: tileConfig.attribution,
+      maxZoom: tileConfig.maxZoom,
+    }).addTo(map);
+    if (resizeTimerRef.current !== null) clearTimeout(resizeTimerRef.current);
+    resizeTimerRef.current = setTimeout(() => {
+      if (mapInstanceRef.current === map) map.invalidateSize();
+      resizeTimerRef.current = null;
+    }, 100);
+    return () => {
+      if (resizeTimerRef.current !== null) {
+        clearTimeout(resizeTimerRef.current);
+        resizeTimerRef.current = null;
+      }
+    };
+  }, [mapLayer]);
+
+  // Dispose Leaflet when this tab unmounts; it will create a fresh map on the next visit.
+  useEffect(() => () => {
+    if (resizeTimerRef.current !== null) {
+      clearTimeout(resizeTimerRef.current);
+      resizeTimerRef.current = null;
+    }
+    mapInstanceRef.current?.remove();
+    mapInstanceRef.current = null;
+    layerGroupRef.current = null;
+    tileLayerRef.current = null;
+  }, []);
 
   return (
     <div className="space-y-6">
+      {clipboardError && <p role="alert" className="rounded-lg border border-rose-900/60 bg-rose-950/30 px-3 py-2 text-xs text-rose-300">{clipboardError}</p>}
       {/* Top Header */}
       <div className="bg-slate-900 border border-slate-800 rounded-xl p-6 shadow-xl">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-4">
@@ -1180,7 +1232,7 @@ print("[✓] Generated cells_survey_map.html with your cellular dump!")
                   <span>Real-Time Device GPS (W3C Geolocation API)</span>
                 </span>
                 <p className="text-slate-400 text-[11px]">
-                  When a smartphone user opens a tracking link and taps "Allow Location", the phone's native GPS chip streams exact latitude & longitude accurate to within 3 to 10 meters.
+                  When someone opens the tracking link and grants browser location permission, the page sends coordinates and browser-reported accuracy while it remains active. Accuracy varies with the device and environment and may be much worse than 3–10 metres; it is not guaranteed to be exact GPS.
                 </p>
               </div>
 
@@ -1292,9 +1344,9 @@ print("[✓] Generated cells_survey_map.html with your cellular dump!")
               </span>
               <button
                 onClick={() => {
-                  navigator.clipboard.writeText(pythonUserDumpScript);
-                  setCopiedCode(true);
-                  setTimeout(() => setCopiedCode(false), 2000);
+                  void (async () => { setClipboardError(''); try { if (!navigator.clipboard?.writeText) throw new Error('Clipboard unavailable'); await navigator.clipboard.writeText(pythonUserDumpScript); setCopiedCode(true); window.setTimeout(() => setCopiedCode(false), 2000); } catch { setClipboardError('Could not copy the Python script automatically. Select and copy the code manually.'); } })();
+                  
+                  
                 }}
                 className="flex items-center gap-1 px-3 py-1 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded text-xs transition-colors"
               >

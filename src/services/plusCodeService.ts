@@ -45,8 +45,8 @@ export function isPlusCode(text: string): boolean {
 }
 
 /**
- * Resolves any Plus Code (e.g. "3JWF+PMR Peshawar", "3JWF+PMR", or "8J6H3JWF+PMR")
- * to exact geographic latitude, longitude and human-readable address.
+ * Resolves a Plus Code to the centre of its encoded area.
+ * Short codes require a recognizable locality because they are not globally unique alone.
  */
 export function resolvePlusCode(input: string): ResolvedPlusCode | null {
   const clean = input.trim();
@@ -58,22 +58,17 @@ export function resolvePlusCode(input: string): ResolvedPlusCode | null {
 
   const rawCode = plusCodeMatch[1].toUpperCase();
 
-  // Extract city/locality name from the remaining text (e.g. "Peshawar" from "3JWF+PMR Peshawar")
-  let localityCandidate = clean.replace(plusCodeMatch[0], '').replace(/[,\.\-\/]/g, ' ').trim().toLowerCase();
-  
-  // Default locality if not specified
-  if (!localityCandidate) {
-    localityCandidate = 'pakistan'; // generic national reference
-  }
-
-  // Find reference coordinates for the locality
+  // A shortened Plus Code needs a recognized nearby locality to recover it safely.
+  const localityCandidate = clean.replace(plusCodeMatch[0], '').replace(/[.,/-]/g, ' ').trim().toLowerCase();
   let refCoords = CITY_REFERENCE_COORDINATES['pakistan'];
-  let matchedCityLabel = 'Pakistan';
+  let matchedCityLabel: string | undefined;
+  let hasKnownLocality = false;
 
   for (const [key, coords] of Object.entries(CITY_REFERENCE_COORDINATES)) {
     if (localityCandidate.includes(key)) {
       refCoords = coords;
       matchedCityLabel = coords.label;
+      hasKnownLocality = true;
       break;
     }
   }
@@ -81,8 +76,9 @@ export function resolvePlusCode(input: string): ResolvedPlusCode | null {
   try {
     let fullCode = rawCode;
 
-    // If it's a short code (e.g. 3JWF+PMR), recover using reference coordinate
+    // A short code (e.g. 3JWF+PMR) cannot be located without a known nearby locality.
     if (OpenLocationCode.isShort(rawCode)) {
+      if (!hasKnownLocality) return null;
       fullCode = OpenLocationCode.recoverNearest(rawCode, refCoords.lat, refCoords.lng);
     }
 
@@ -94,7 +90,17 @@ export function resolvePlusCode(input: string): ResolvedPlusCode | null {
     const lat = codeArea.latitudeCenter;
     const lng = codeArea.longitudeCenter;
 
-    const displayName = `Plus Code ${rawCode} (${matchedCityLabel})`;
+    const displayName = matchedCityLabel
+      ? `Plus Code ${rawCode} (${matchedCityLabel})`
+      : `Plus Code ${rawCode}`;
+    // Estimate the maximum distance from the decoded cell centre using its half-diagonal.
+    // Cell dimensions vary by code length, so a fixed 14 m value is not accurate for every code.
+    const halfHeightM = ((codeArea.latitudeHi - codeArea.latitudeLo) / 2) * 111320;
+    const halfWidthM =
+      ((codeArea.longitudeHi - codeArea.longitudeLo) / 2) *
+      111320 *
+      Math.max(0.01, Math.cos((lat * Math.PI) / 180));
+    const accuracyMeters = Math.max(1, Math.round(Math.hypot(halfHeightM, halfWidthM)));
 
     return {
       originalInput: clean,
@@ -104,7 +110,7 @@ export function resolvePlusCode(input: string): ResolvedPlusCode | null {
       displayName,
       lat,
       lng,
-      accuracyMeters: 14, // Plus code 10-char resolution is ~14x14m
+      accuracyMeters,
       bounds: {
         south: codeArea.latitudeLo,
         west: codeArea.longitudeLo,

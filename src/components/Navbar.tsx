@@ -12,6 +12,7 @@ export type TabId =
   | 'history'
   | 'investigations'
   | 'public_osint'
+  | 'resource_hub'
   | 'plan'
   | 'admin'
   | 'python'
@@ -64,6 +65,7 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab }) => {
     { id: 'history', label: 'History' },
     { id: 'investigations', label: 'Investigations' },
     { id: 'public_osint', label: 'Username / Email / Image' },
+    { id: 'resource_hub', label: 'Resource Hub' },
     isAdmin ? { id: 'admin', label: 'Customers' } : { id: 'plan', label: 'Plan' },
   ];
 

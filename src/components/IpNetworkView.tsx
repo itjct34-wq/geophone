@@ -50,17 +50,17 @@ const IpCard: React.FC<{
       attribution: '&copy; OpenStreetMap contributors',
       maxZoom: 19,
     }).addTo(map);
-    // IP geolocation is city-level at best, so the area is drawn as a circle, not a pin
-    L.circle([result.lat, result.lng], {
-      radius: 15000,
-      color: '#22d3ee',
-      fillColor: '#22d3ee',
-      fillOpacity: 0.15,
+    // Do not draw a fixed 15 km radius: the provider does not give us a reliable accuracy radius.
+    L.circleMarker([result.lat, result.lng], {
+      radius: 8,
+      color: '#ffffff',
       weight: 2,
-    }).addTo(map);
-    L.circleMarker([result.lat, result.lng], { radius: 5, color: '#fff', weight: 2, fillColor: '#22d3ee', fillOpacity: 1 }).addTo(map);
-    setTimeout(() => map.invalidateSize(), 100);
+      fillColor: '#22d3ee',
+      fillOpacity: 0.9,
+    }).addTo(map).bindPopup('Approximate network location from IP geolocation; not the phone’s GPS position.');
+    const resizeTimer = window.setTimeout(() => map.invalidateSize(), 100);
     return () => {
+      window.clearTimeout(resizeTimer);
       map.remove();
     };
   }, [result.lat, result.lng]);
@@ -105,6 +105,7 @@ export const IpNetworkView: React.FC<IpNetworkViewProps> = ({ onOpenGodEye }) =>
   const [result, setResult] = useState<IpLookupResult | null>(null);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
+  const lookupRequestRef = useRef(0);
   const [conn, setConn] = useState<ConnectionInfo>(readConnection);
 
   useEffect(() => {
@@ -129,16 +130,22 @@ export const IpNetworkView: React.FC<IpNetworkViewProps> = ({ onOpenGodEye }) =>
   const handleLookup = useCallback(
     async (e: React.FormEvent) => {
       e.preventDefault();
-      if (!query.trim()) return;
+      const target = query.trim();
+      if (!target) return;
+      const requestId = ++lookupRequestRef.current;
       setBusy(true);
       setError('');
+      setResult(null);
       try {
-        setResult(await lookupIp(query));
+        const data = await lookupIp(target);
+        if (requestId === lookupRequestRef.current) setResult(data);
       } catch (err) {
-        setResult(null);
-        setError(err instanceof Error ? err.message : 'Lookup failed.');
+        if (requestId === lookupRequestRef.current) {
+          setResult(null);
+          setError(err instanceof Error ? err.message : 'Lookup failed.');
+        }
       } finally {
-        setBusy(false);
+        if (requestId === lookupRequestRef.current) setBusy(false);
       }
     },
     [query],
@@ -157,7 +164,13 @@ export const IpNetworkView: React.FC<IpNetworkViewProps> = ({ onOpenGodEye }) =>
             <Search className="w-4 h-4 text-slate-500 absolute left-3 top-1/2 -translate-y-1/2" />
             <input
               value={query}
-              onChange={(e) => setQuery(e.target.value)}
+              onChange={(e) => {
+                lookupRequestRef.current += 1;
+                setQuery(e.target.value);
+                setResult(null);
+                setError('');
+                setBusy(false);
+              }}
               placeholder="IP address or website (e.g. 8.8.8.8 or example.com)"
               aria-label="IP address or domain"
               className="w-full pl-10 pr-3 py-2.5 bg-slate-950 border border-slate-800 rounded-lg text-sm text-slate-100 placeholder:text-slate-600 font-mono focus:outline-none focus:border-cyan-500"
@@ -184,7 +197,7 @@ export const IpNetworkView: React.FC<IpNetworkViewProps> = ({ onOpenGodEye }) =>
           <p>
             An IP address shows where the network provider is, usually the city and often not even that.
             Mobile data and VPNs can place a person hundreds of kilometres from their real position (a phone in
-            Peshawar may appear in Lahore or Karachi). The circle on the map marks the approximate area, not a point.
+            Peshawar may appear in Lahore or Karachi). The map marker shows only the provider’s approximate network location, not the handset’s GPS coordinates.
           </p>
         </div>
       </div>
