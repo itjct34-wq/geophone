@@ -10,18 +10,13 @@ import { addHistory } from './services/dataService';
 import { PhoneLookupView } from './components/PhoneLookupView';
 import { LiveHandsetTrackerView } from './components/LiveHandsetTrackerView';
 import { BatchTrackerView } from './components/BatchTrackerView';
-import { OpenCageGuide } from './components/OpenCageGuide';
-import { OpenCageSkillsView } from './components/OpenCageSkillsView';
-import { PythonScriptModal } from './components/PythonScriptModal';
 const GodEyeView = lazy(() => import('./components/GodEyeView').then((m) => ({ default: m.GodEyeView })));
 import { parsePhoneNumber } from './services/phoneParser';
 import { generateFoliumHtml } from './services/pythonScriptGenerator';
-import { Terminal, Download, Globe, Shield, Code, ExternalLink } from 'lucide-react';
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<TabId>('lookup');
   const [inputNumber, setInputNumber] = useState('');
-  const [isPythonModalOpen, setIsPythonModalOpen] = useState(false);
 
   // Compute parsed phone intelligence
   const phoneResult = useMemo(() => {
@@ -87,12 +82,7 @@ export default function App() {
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col selection:bg-cyan-500 selection:text-slate-950">
       {/* Navigation Header adhering to 3-zone contract */}
-      <Navbar
-        activeTab={activeTab}
-        setActiveTab={setActiveTab}
-        onOpenPythonModal={() => setIsPythonModalOpen(true)}
-        onExportHtml={handleExportHtml}
-      />
+      <Navbar activeTab={activeTab} setActiveTab={setActiveTab} />
 
       {/* Main Content Area */}
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6">
@@ -101,8 +91,7 @@ export default function App() {
             inputNumber={inputNumber}
             setInputNumber={setInputNumber}
             result={phoneResult}
-            onOpenPythonModal={() => setIsPythonModalOpen(true)}
-            onExportHtml={handleExportHtml}
+                onExportHtml={handleExportHtml}
             onSwitchTab={setActiveTab}
           />
         )}
@@ -122,42 +111,7 @@ export default function App() {
         )}
 
         {activeTab === 'history' && <HistoryView onSelectNumber={handleSelectBatchNumber} />}
-
-        {activeTab === 'python' && (
-          <div className="space-y-6">
-            <div className="bg-slate-900 border border-slate-800 rounded-xl p-6">
-              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                <div>
-                  <h2 className="text-lg font-bold text-slate-100">
-                    The 4-Package Python Geocoding & Folium Stack
-                  </h2>
-                  <p className="text-xs text-slate-400 mt-1">
-                    Everything you need to run the Python phone tracker script locally with <code className="text-cyan-300 font-mono">phonenumbers</code>, <code className="text-cyan-300 font-mono">folium</code>, <code className="text-cyan-300 font-mono">geocoder</code>, and <code className="text-cyan-300 font-mono">opencage</code>.
-                  </p>
-                </div>
-                <button
-                  onClick={() => setIsPythonModalOpen(true)}
-                  className="flex items-center gap-2 px-4 py-2 text-xs font-semibold text-slate-950 bg-cyan-400 hover:bg-cyan-300 rounded-lg transition-colors whitespace-nowrap shrink-0"
-                >
-                  <Terminal className="w-4 h-4" />
-                  <span>Launch Python Exporter & Runner</span>
-                </button>
-              </div>
-            </div>
-
-            <OpenCageGuide />
-          </div>
-        )}
-
-        {activeTab === 'guide' && <OpenCageSkillsView />}
       </main>
-
-      {/* Python Script Modal with interactive terminal & export */}
-      <PythonScriptModal
-        isOpen={isPythonModalOpen}
-        onClose={() => setIsPythonModalOpen(false)}
-        result={phoneResult}
-      />
 
       {/* Footer */}
       <footer className="border-t border-slate-800/80 bg-slate-950 py-6 text-xs text-slate-500">

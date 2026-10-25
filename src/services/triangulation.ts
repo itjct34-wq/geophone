@@ -66,9 +66,10 @@ export interface CellLookupResult {
   lat: number;
   lng: number;
   rangeM: number;
+  source: string;
 }
 
-/** Resolves a real tower position through the /api/cell proxy (OpenCelliD). */
+/** Resolves a real tower position through the /api/cell proxy (OpenCelliD, BeaconDB, Unwired Labs). */
 export async function lookupCell(
   mcc: number,
   mnc: number,
@@ -91,5 +92,10 @@ export async function lookupCell(
   }
   const data = await res.json();
   if (typeof data.lat !== 'number' || typeof data.lng !== 'number') return null;
-  return { lat: data.lat, lng: data.lng, rangeM: data.range ?? defaultRangeMeters(radio) };
+  return {
+    lat: data.lat,
+    lng: data.lng,
+    rangeM: data.range ?? defaultRangeMeters(radio),
+    source: data.source ?? 'unknown',
+  };
 }

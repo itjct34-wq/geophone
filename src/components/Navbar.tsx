@@ -7,14 +7,11 @@ export type TabId = 'lookup' | 'live_gps' | 'batch' | 'god_eye' | 'history' | 'p
 interface NavbarProps {
   activeTab: TabId;
   setActiveTab: (tab: TabId) => void;
-  onOpenPythonModal: () => void;
-  onExportHtml: () => void;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
   activeTab,
   setActiveTab,
-  onOpenPythonModal,
 }) => {
   const { user, signOut } = useAuth();
   return (

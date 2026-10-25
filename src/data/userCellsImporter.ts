@@ -30,6 +30,10 @@ export interface ResolvedUserCell {
   lat: number;
   lng: number;
   isApproximate: boolean;
+  /** Coverage/accuracy radius in meters, when a lookup provided one. */
+  rangeM?: number;
+  /** Database that supplied a real position (e.g. OpenCelliD). */
+  source?: string;
 }
 
 // User-provided raw cells dump string

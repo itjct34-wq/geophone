@@ -38,7 +38,6 @@ import {
   USER_DEFAULT_OPENCAGE_KEY,
   OpenCageResult
 } from '../services/openCageService';
-import { WhyOpenCageModal } from './WhyOpenCageModal';
 import { LiveTrackingShareModal } from './LiveTrackingShareModal';
 import { resolvePlusCode, isPlusCode, ResolvedPlusCode } from '../services/plusCodeService';
 
@@ -46,7 +45,6 @@ interface PhoneLookupViewProps {
   inputNumber: string;
   setInputNumber: (num: string) => void;
   result: PhoneLookupResult;
-  onOpenPythonModal: () => void;
   onExportHtml: () => void;
   onSwitchTab?: (tab: 'lookup' | 'live_gps' | 'batch' | 'python' | 'guide') => void;
 }
@@ -63,7 +61,6 @@ export const PhoneLookupView: React.FC<PhoneLookupViewProps> = ({
   inputNumber,
   setInputNumber,
   result,
-  onOpenPythonModal,
   onExportHtml,
   onSwitchTab,
 }) => {
@@ -71,10 +68,16 @@ export const PhoneLookupView: React.FC<PhoneLookupViewProps> = ({
   const [openCageKey] = useState<string>(USER_DEFAULT_OPENCAGE_KEY);
   const [openCageData, setOpenCageData] = useState<OpenCageResult | null>(null);
   const [isGeocoding, setIsGeocoding] = useState<boolean>(false);
-  const [cityOverride, setCityOverride] = useState<string | null>(null);
+  // Known Pakistani cities, matched automatically against the number's region
+  const KNOWN_CITIES = ['Islamabad', 'Rawalpindi', 'Lahore', 'Karachi', 'Peshawar', 'Faisalabad', 'Multan'];
+  const cityOverride = React.useMemo(() => {
+    if (result.countryCode !== 'PK') return null;
+    const text = ` ${result.regionOrCity ?? ''}`.toLowerCase();
+    return KNOWN_CITIES.find((c) => text.includes(c.toLowerCase())) ?? null;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [result.countryCode, result.subAllocation, result.regionOrCity]);
 
   // Modals state for Why OpenCage and WhatsApp/SMS Live Tracking Share
-  const [isWhyModalOpen, setIsWhyModalOpen] = useState<boolean>(false);
   const [isShareModalOpen, setIsShareModalOpen] = useState<boolean>(false);
 
   // Google Plus Code location (user-entered; nothing is pre-filled)
@@ -91,7 +94,6 @@ export const PhoneLookupView: React.FC<PhoneLookupViewProps> = ({
       setActivePlusCodeFix(resolved);
       setIsPlusCodeActive(true);
       setLiveGpsFix(null);
-      setCityOverride(null);
     } else {
       setPlusCodeError(`Could not decode Plus Code "${target}". Expected format: XXXX+XX City or a full code like 8FVC9G8F+6W`);
     }
@@ -218,11 +220,6 @@ export const PhoneLookupView: React.FC<PhoneLookupViewProps> = ({
     };
   }, [result, openCageData, cityOverride, liveGpsFix, isPlusCodeActive, activePlusCodeFix]);
 
-  // Reset any city override when the number changes
-  useEffect(() => {
-    setCityOverride(null);
-  }, [inputNumber]);
-
   const handleCopy = (text: string, fieldName: string) => {
     navigator.clipboard.writeText(text);
     setCopiedField(fieldName);
@@ -329,7 +326,7 @@ export const PhoneLookupView: React.FC<PhoneLookupViewProps> = ({
                   </span>
                 ) : (
                   <span>
-                    Mobile numbers aren't tied to a place, so the map shows the centre of the country. Pick a city below, or use Track Real GPS for this device's true position.
+                    Mobile numbers aren't tied to a place, so the map shows the centre of the country. The area shown is detected automatically. Use Track Real GPS for this device's true position.
                   </span>
                 )}
               </p>
@@ -479,35 +476,19 @@ export const PhoneLookupView: React.FC<PhoneLookupViewProps> = ({
           </div>
         )}
 
-        {/* City Simulation Tags */}
-        <div className="pt-2 border-t border-slate-800/80 flex flex-wrap items-center gap-2 text-xs">
-          <span className="text-slate-400 font-medium">Pin Known City / Sector:</span>
-          {['Islamabad', 'Rawalpindi', 'Lahore', 'Karachi', 'Peshawar', 'Faisalabad', 'Multan'].map((city) => (
-            <button
-              key={city}
-              onClick={() => {
-                setLiveGpsFix(null);
-                setCityOverride(city);
-              }}
-              className={`px-2.5 py-1 rounded text-[11px] font-medium transition-colors ${
-                cityOverride === city && !liveGpsFix
-                  ? 'bg-cyan-500 text-slate-950 font-bold'
-                  : 'bg-slate-950 hover:bg-slate-800 text-slate-300 border border-slate-800'
-              }`}
-            >
-              {city}
-            </button>
-          ))}
-          {cityOverride && (
-            <button
-              onClick={() => setCityOverride(null)}
-              className="px-2 py-0.5 text-[11px] text-amber-400 hover:text-amber-300 underline ml-1"
-            >
-              Reset
-            </button>
-          )}
-        </div>
-      </div>
+        {/* Automatic area detection */}
+        {inputNumber.trim() && !liveGpsFix && !(isPlusCodeActive && activePlusCodeFix) && (
+          <div className="pt-2 border-t border-slate-800/80 flex flex-wrap items-center gap-2 text-xs text-slate-400">
+            <MapPin className="w-3.5 h-3.5 text-cyan-400" />
+            <span>
+              Area:{' '}
+              <strong className="text-slate-200">
+                {cityOverride ?? (result.regionOrCity || result.countryName)}
+              </strong>{' '}
+              (detected automatically from the number)
+            </span>
+          </div>
+        )}      </div>
 
       {!inputNumber.trim() ? (
         <div className="bg-slate-900 border border-dashed border-slate-700 rounded-xl p-10 text-center space-y-2">
@@ -721,12 +702,6 @@ export const PhoneLookupView: React.FC<PhoneLookupViewProps> = ({
       )}
 
       {/* Interactive Modals */}
-      <WhyOpenCageModal
-        isOpen={isWhyModalOpen}
-        onClose={() => setIsWhyModalOpen(false)}
-        currentNumber={inputNumber}
-      />
-
       <LiveTrackingShareModal
         isOpen={isShareModalOpen}
         onClose={() => setIsShareModalOpen(false)}

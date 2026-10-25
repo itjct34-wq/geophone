@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import L from 'leaflet';
 import {
   Crosshair,
@@ -238,42 +238,132 @@ export const LiveHandsetTrackerView: React.FC<LiveHandsetTrackerViewProps> = ({ 
     [userCells, triangulationIds],
   );
 
-  const triangulationEstimate: PositionEstimate | null = React.useMemo(() => {
-    if (triangulationCells.length < 3) return null;
-    return estimatePosition(
-      triangulationCells.map((c) => ({ lat: c.lat, lng: c.lng, rangeM: defaultRangeMeters(c.technology) })),
-    );
-  }, [triangulationCells]);
+  // Prefer towers with a real position; fall back to all selected cells (indicative only)
+  const realTriangulationCells = triangulationCells.filter((c) => !c.isApproximate);
+  const triangulationBasis = realTriangulationCells.length >= 3 ? realTriangulationCells : triangulationCells;
 
-  // Replace cluster guesses with real tower positions where the lookup finds them
-  const handleResolveRealTowers = async () => {
-    const targets = triangulationCells.length > 0 ? triangulationCells : filteredUserCells.slice(0, 25);
-    setIsResolving(true);
-    setResolveMessage(null);
-    let found = 0;
+  const triangulationEstimate: PositionEstimate | null = React.useMemo(() => {
+    if (triangulationBasis.length < 3) return null;
+    return estimatePosition(
+      triangulationBasis.map((c) => ({
+        lat: c.lat,
+        lng: c.lng,
+        rangeM: c.rangeM ?? defaultRangeMeters(c.technology),
+      })),
+    );
+  }, [triangulationBasis]);
+
+  // Replace area guesses with real tower positions (OpenCelliD, BeaconDB, Unwired Labs)
+  const [resolveProgress, setResolveProgress] = useState<{ done: number; total: number } | null>(null);
+
+  // Resolved positions are cached for a day so towers are not looked up again on every visit
+  const CELL_CACHE_KEY = 'geophone.cellcache.v1';
+  const CELL_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
+  type CachedCell = { ts: number; hit: { lat: number; lng: number; rangeM: number; source: string } | null };
+
+  const readCellCache = (): Record<string, CachedCell> => {
     try {
-      const resolved: Record<string, { lat: number; lng: number }> = {};
-      for (const c of targets) {
-        const hit = await lookupCell(c.mcc, c.mnc, c.lac, c.cid, c.technology);
-        if (hit) {
-          resolved[c.id] = { lat: hit.lat, lng: hit.lng };
-          found += 1;
-        }
-      }
-      setUserCells((prev) =>
-        prev.map((c) => {
-          const r = resolved[c.id];
-          return r ? { ...c, lat: r.lat, lng: r.lng, isApproximate: false } : c;
-        }),
-      );
-      setResolveMessage(`Resolved ${found} of ${targets.length} towers to real positions.`);
-    } catch (err) {
-      setResolveMessage(err instanceof Error ? err.message : 'Tower lookup failed.');
-    } finally {
-      setIsResolving(false);
+      return JSON.parse(localStorage.getItem(CELL_CACHE_KEY) || '{}');
+    } catch {
+      return {};
     }
   };
 
+  const writeCellCache = (cache: Record<string, CachedCell>) => {
+    try {
+      localStorage.setItem(CELL_CACHE_KEY, JSON.stringify(cache));
+    } catch {
+      /* storage unavailable: lookups simply are not cached */
+    }
+  };
+
+  const cellKey = (c: ResolvedUserCell) => `${c.mcc}-${c.mnc}-${c.lac}-${c.cid}-${c.technology}`;
+
+  const runResolve = async (targets: ResolvedUserCell[], silent: boolean) => {
+    const cache = readCellCache();
+    const now = Date.now();
+    const resolved: Record<string, { lat: number; lng: number; rangeM: number; source: string }> = {};
+    const bySource: Record<string, number> = {};
+    const toFetch: ResolvedUserCell[] = [];
+
+    for (const c of targets) {
+      const cached = cache[cellKey(c)];
+      if (cached && now - cached.ts < CELL_CACHE_TTL_MS) {
+        if (cached.hit) {
+          resolved[c.id] = cached.hit;
+          bySource[cached.hit.source] = (bySource[cached.hit.source] ?? 0) + 1;
+        }
+      } else {
+        toFetch.push(c);
+      }
+    }
+
+    setIsResolving(true);
+    if (!silent) setResolveMessage(null);
+    setResolveProgress({ done: 0, total: toFetch.length });
+
+    let failure: string | null = null;
+    let next = 0;
+    let done = 0;
+    const worker = async () => {
+      while (next < toFetch.length && !failure) {
+        const c = toFetch[next++];
+        try {
+          const hit = await lookupCell(c.mcc, c.mnc, c.lac, c.cid, c.technology);
+          cache[cellKey(c)] = { ts: Date.now(), hit };
+          if (hit) {
+            resolved[c.id] = hit;
+            bySource[hit.source] = (bySource[hit.source] ?? 0) + 1;
+          }
+        } catch (err) {
+          failure = err instanceof Error ? err.message : 'Tower lookup failed.';
+        }
+        done += 1;
+        setResolveProgress({ done, total: toFetch.length });
+      }
+    };
+    await Promise.all([worker(), worker(), worker(), worker()]);
+    writeCellCache(cache);
+
+    setUserCells((prev) =>
+      prev.map((c) => {
+        const r = resolved[c.id];
+        return r ? { ...c, lat: r.lat, lng: r.lng, rangeM: r.rangeM, source: r.source, isApproximate: false } : c;
+      }),
+    );
+
+    const found = Object.keys(resolved).length;
+    const breakdown = Object.entries(bySource)
+      .map(([s, n]) => `${s} ${n}`)
+      .join(', ');
+    setResolveMessage(
+      failure
+        ? `Stopped: ${failure} (${found} resolved before the error).`
+        : `Resolved ${found} of ${targets.length} towers${breakdown ? ` (${breakdown})` : ''}. ${
+            found < targets.length ? `${targets.length - found} are not in any database and stay approximate.` : ''
+          }`,
+    );
+    setResolveProgress(null);
+    setIsResolving(false);
+  };
+
+  const handleResolveRealTowers = () => {
+    const targets = (triangulationCells.length > 0 ? triangulationCells : userCells).filter((c) => c.isApproximate);
+    if (targets.length === 0) {
+      setResolveMessage('All selected towers already have real positions.');
+      return;
+    }
+    return runResolve(targets, false);
+  };
+
+  // Automatically resolve every tower once when this view opens
+  const autoResolvedRef = useRef(false);
+  useEffect(() => {
+    if (autoResolvedRef.current) return;
+    autoResolvedRef.current = true;
+    runResolve(userCells, true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   // Tile layer configuration helper
   const getTileConfig = (layer: MapTileLayer): { url: string; attribution: string; maxZoom: number } => {
     switch (layer) {
@@ -839,7 +929,7 @@ print("[✓] Generated cells_survey_map.html with your cellular dump!")
                 <span>Multi-Cell Position Estimate</span>
               </h3>
               <p className="text-slate-400 text-xs leading-relaxed">
-                Tick 3 or more cells in the <strong className="text-slate-200">Your Imported Cells</strong> table (the ones a handset reported as serving and neighbour cells). The estimate is a range-weighted centroid of those towers; the circle is its uncertainty. Accuracy depends on how real the tower positions are: use <strong className="text-slate-200">Resolve real tower positions</strong> first.
+                Tick 3 or more cells in the <strong className="text-slate-200">Your Imported Cells</strong> table (the ones a handset reported as serving and neighbour cells). The estimate is a range-weighted centroid of those towers; the circle is its uncertainty. Accuracy depends on how real the tower positions are: run <strong className="text-slate-200">Resolve towers</strong> first.
               </p>
             </div>
 
@@ -850,7 +940,7 @@ print("[✓] Generated cells_survey_map.html with your cellular dump!")
                 className="px-3 py-1.5 bg-amber-500 hover:bg-amber-400 disabled:opacity-60 text-slate-950 font-bold rounded-lg transition-colors flex items-center gap-1.5"
               >
                 <RefreshCw className={`w-3.5 h-3.5 ${isResolving ? 'animate-spin' : ''}`} />
-                <span>{isResolving ? 'Resolving...' : 'Resolve real tower positions'}</span>
+                <span>{resolveProgress ? `Resolving ${resolveProgress.done}/${resolveProgress.total}...` : isResolving ? 'Resolving...' : triangulationIds.length > 0 ? 'Resolve selected towers' : 'Resolve all towers'}</span>
               </button>
               <button
                 onClick={() => setTriangulationIds([])}
@@ -869,9 +959,9 @@ print("[✓] Generated cells_survey_map.html with your cellular dump!")
             {triangulationEstimate ? (
               <div className="p-3 bg-purple-950/30 border border-purple-800/40 rounded-lg text-purple-200 font-mono text-xs">
                 Estimated position: {triangulationEstimate.lat.toFixed(5)}, {triangulationEstimate.lng.toFixed(5)} · ±{triangulationEstimate.radiusM} m
-                {triangulationCells.some((c) => c.isApproximate) && (
+                {triangulationBasis.some((c) => c.isApproximate) && (
                   <span className="block mt-1 font-sans text-[11px] text-amber-300">
-                    {triangulationCells.filter((c) => c.isApproximate).length} selected cell(s) still use approximate area positions, so this result is only indicative.
+                    {triangulationBasis.filter((c) => c.isApproximate).length} of {triangulationBasis.length} cells still use approximate area positions, so this result is only indicative. Select 3 or more resolved towers (marked 'real') for a trustworthy estimate.
                   </span>
                 )}
               </div>
