@@ -101,3 +101,18 @@ export async function stopSharing(token: string): Promise<void> {
   const { error } = await supabase.rpc('share_stop', { p_token: token });
   if (error) throw new Error(error.message);
 }
+
+/** Details the person chose to share on the consent page (all optional). */
+export interface SharedInfo {
+  name?: string;
+  device?: string;
+  language?: string;
+  timezone?: string;
+  connection?: string;
+}
+
+export async function sendShareInfo(token: string, info: SharedInfo): Promise<boolean> {
+  const { data, error } = await supabase.rpc('share_set_info', { p_token: token, p_info: info });
+  if (error) throw new Error(error.message);
+  return Boolean(data);
+}

@@ -1,6 +1,46 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Radio, MapPin, ShieldCheck, Loader2, Square } from 'lucide-react';
-import { fetchShareInfo, postSharePosition, stopSharing, type ShareInfo } from '../services/shareService';
+import {
+  fetchShareInfo,
+  postSharePosition,
+  sendShareInfo,
+  stopSharing,
+  type ShareInfo,
+  type SharedInfo,
+} from '../services/shareService';
+
+/** Short, readable description of the browser and system, e.g. "Chrome on Android". */
+function describeDevice(): string {
+  const ua = navigator.userAgent;
+  const browser = /Edg\//.test(ua)
+    ? 'Edge'
+    : /OPR\//.test(ua)
+    ? 'Opera'
+    : /Firefox\//.test(ua)
+    ? 'Firefox'
+    : /Chrome\//.test(ua)
+    ? 'Chrome'
+    : /Safari\//.test(ua)
+    ? 'Safari'
+    : 'Browser';
+  const os = /Android/.test(ua)
+    ? 'Android'
+    : /iPhone|iPad|iPod/.test(ua)
+    ? 'iOS'
+    : /Windows/.test(ua)
+    ? 'Windows'
+    : /Mac OS X/.test(ua)
+    ? 'macOS'
+    : /Linux/.test(ua)
+    ? 'Linux'
+    : 'an unknown system';
+  return `${browser} on ${os}`;
+}
+
+function describeConnection(): string {
+  const c = (navigator as Navigator & { connection?: { effectiveType?: string } }).connection;
+  return c?.effectiveType ? c.effectiveType.toUpperCase() : 'Not reported by this browser';
+}
 
 /**
  * Page opened by the person who was asked to share their location. It needs no
@@ -15,6 +55,15 @@ export const SharePage: React.FC<{ token: string }> = ({ token }) => {
   const [accuracy, setAccuracy] = useState<number | null>(null);
   const [lastSent, setLastSent] = useState<Date | null>(null);
   const [error, setError] = useState('');
+
+  // What the person chooses to share. Location is on by default; the rest are optional extras.
+  const [shareLocation, setShareLocation] = useState(true);
+  const [shareName, setShareName] = useState(false);
+  const [nameValue, setNameValue] = useState('');
+  const [shareDevice, setShareDevice] = useState(false);
+  const [shareLanguage, setShareLanguage] = useState(false);
+  const [shareConnection, setShareConnection] = useState(false);
+  const [infoSent, setInfoSent] = useState(false);
 
   const watchId = useRef<number | null>(null);
   const lastPostAt = useRef(0);
@@ -38,8 +87,34 @@ export const SharePage: React.FC<{ token: string }> = ({ token }) => {
 
   useEffect(() => halt, [halt]);
 
+  const chosenInfo = (): SharedInfo => {
+    const info: SharedInfo = {};
+    if (shareName && nameValue.trim()) info.name = nameValue.trim();
+    if (shareDevice) info.device = describeDevice();
+    if (shareLanguage) {
+      info.language = navigator.language;
+      info.timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    }
+    if (shareConnection) info.connection = describeConnection();
+    return info;
+  };
+
   const start = async () => {
     setError('');
+
+    // Send only the extra details that were ticked, once, before anything else
+    const info = chosenInfo();
+    if (Object.keys(info).length > 0) {
+      try {
+        await sendShareInfo(token, info);
+        setInfoSent(true);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Could not send the details you chose.');
+        return;
+      }
+    }
+    if (!shareLocation) return; // details only: no location is requested
+
     if (!navigator.geolocation) {
       setError('This browser cannot share a location.');
       return;
@@ -139,14 +214,55 @@ export const SharePage: React.FC<{ token: string }> = ({ token }) => {
   return shell(
     <>
       <div className="space-y-1">
-        <h1 className="text-base font-bold">{who} is asking to see your location</h1>
+        <h1 className="text-base font-bold">{who} is asking you to share some information</h1>
       </div>
 
       <ul className="text-xs text-slate-300 space-y-1.5">
-        <li className="flex gap-2"><ShieldCheck className="w-4 h-4 text-emerald-400 shrink-0" /> Only your position is shared, nothing else on your phone.</li>
-        <li className="flex gap-2"><MapPin className="w-4 h-4 text-cyan-400 shrink-0" /> It updates while this page is open and stops when you close it or tap Stop.</li>
+        <li className="flex gap-2"><ShieldCheck className="w-4 h-4 text-emerald-400 shrink-0" /> Only what you tick below is shared, nothing else on your phone.</li>
+        <li className="flex gap-2"><MapPin className="w-4 h-4 text-cyan-400 shrink-0" /> Your position updates while this page is open and stops when you close it or tap Stop.</li>
         <li className="flex gap-2"><ShieldCheck className="w-4 h-4 text-emerald-400 shrink-0" /> The link stops working on its own after 24 hours.</li>
       </ul>
+
+      {!sharing && !infoSent && (
+        <fieldset className="space-y-2.5 border border-slate-800 rounded-lg p-3">
+          <legend className="px-1 text-[11px] font-semibold text-slate-400 uppercase tracking-wider">What to share</legend>
+
+          <label className="flex items-start gap-2 text-xs text-slate-200 cursor-pointer">
+            <input type="checkbox" checked={shareLocation} onChange={(e) => setShareLocation(e.target.checked)} className="mt-0.5 accent-emerald-400" />
+            <span>My position <span className="text-slate-500">(your phone will ask permission)</span></span>
+          </label>
+
+          <label className="flex items-start gap-2 text-xs text-slate-200 cursor-pointer">
+            <input type="checkbox" checked={shareName} onChange={(e) => setShareName(e.target.checked)} className="mt-0.5 accent-emerald-400" />
+            <span>My name</span>
+          </label>
+          {shareName && (
+            <input
+              value={nameValue}
+              onChange={(e) => setNameValue(e.target.value)}
+              maxLength={60}
+              placeholder="Type the name you want to show"
+              aria-label="Your name"
+              className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-lg text-xs text-slate-100 focus:outline-none focus:border-emerald-500"
+            />
+          )}
+
+          <label className="flex items-start gap-2 text-xs text-slate-200 cursor-pointer">
+            <input type="checkbox" checked={shareDevice} onChange={(e) => setShareDevice(e.target.checked)} className="mt-0.5 accent-emerald-400" />
+            <span>My browser and system <span className="text-slate-500">({describeDevice()})</span></span>
+          </label>
+
+          <label className="flex items-start gap-2 text-xs text-slate-200 cursor-pointer">
+            <input type="checkbox" checked={shareLanguage} onChange={(e) => setShareLanguage(e.target.checked)} className="mt-0.5 accent-emerald-400" />
+            <span>My language and time zone <span className="text-slate-500">({navigator.language}, {Intl.DateTimeFormat().resolvedOptions().timeZone})</span></span>
+          </label>
+
+          <label className="flex items-start gap-2 text-xs text-slate-200 cursor-pointer">
+            <input type="checkbox" checked={shareConnection} onChange={(e) => setShareConnection(e.target.checked)} className="mt-0.5 accent-emerald-400" />
+            <span>My connection type <span className="text-slate-500">({describeConnection()})</span></span>
+          </label>
+        </fieldset>
+      )}
 
       {sharing ? (
         <div className="space-y-3">
@@ -166,12 +282,25 @@ export const SharePage: React.FC<{ token: string }> = ({ token }) => {
             <Square className="w-4 h-4" /> Stop sharing
           </button>
         </div>
+      ) : infoSent ? (
+        <div className="space-y-3">
+          <div className="p-3 bg-emerald-950/30 border border-emerald-800/40 rounded-lg text-xs text-emerald-300">
+            The details you chose were sent. Nothing else is being shared.
+          </div>
+          <button
+            onClick={stop}
+            className="w-full flex items-center justify-center gap-2 px-4 py-3 text-sm font-semibold text-slate-100 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-lg transition-colors"
+          >
+            <Square className="w-4 h-4" /> Done
+          </button>
+        </div>
       ) : (
         <button
           onClick={start}
-          className="w-full px-4 py-3 text-sm font-semibold text-slate-950 bg-emerald-400 hover:bg-emerald-300 rounded-lg transition-colors"
+          disabled={!shareLocation && !shareName && !shareDevice && !shareLanguage && !shareConnection}
+          className="w-full px-4 py-3 text-sm font-semibold text-slate-950 bg-emerald-400 hover:bg-emerald-300 disabled:opacity-50 rounded-lg transition-colors"
         >
-          Share my location
+          {shareLocation ? 'Share my location' : 'Send the selected details'}
         </button>
       )}
 

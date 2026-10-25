@@ -85,6 +85,20 @@ export const NumberActivityCard: React.FC<NumberActivityCardProps> = ({ result, 
 
   const contact = useMemo(() => localContactInfo(result.timezones[0]), [result.timezones, stats]);
 
+  // The newest link that came back with details
+  const sharedDetails: [string, string][] = useMemo(() => {
+    const info = shares.find((s) => s.info && Object.keys(s.info).length > 0)?.info;
+    if (!info) return [];
+    const rows: [string, string | undefined][] = [
+      ['Name', info.name],
+      ['Browser and system', info.device],
+      ['Language', info.language],
+      ['Time zone', info.timezone],
+      ['Connection', info.connection],
+    ];
+    return rows.filter((r): r is [string, string] => Boolean(r[1]));
+  }, [shares]);
+
   if (!e164) return null;
 
   const actionClass =
@@ -150,7 +164,11 @@ export const NumberActivityCard: React.FC<NumberActivityCardProps> = ({ result, 
             ) : (
               <ul className="space-y-1">
                 {shares.map((s) => {
-                  const st = SHARE_STATE_LABEL[s.state];
+                  const hasInfo = !!s.info && Object.keys(s.info).length > 0;
+                  const st =
+                    s.state === 'waiting' && hasInfo
+                      ? { text: 'Details shared, no location', tone: 'text-cyan-300' }
+                      : SHARE_STATE_LABEL[s.state];
                   return (
                     <li key={s.id} className="flex items-center justify-between gap-3 text-xs">
                       <span className={st.tone}>{st.text}</span>
@@ -163,6 +181,15 @@ export const NumberActivityCard: React.FC<NumberActivityCardProps> = ({ result, 
           </div>
         </div>
       </div>
+
+      {sharedDetails.length > 0 && (
+        <div className="p-3 bg-emerald-950/20 border border-emerald-800/40 rounded-lg space-y-1">
+          <p className="text-xs font-semibold text-emerald-300">Details the person chose to share</p>
+          {sharedDetails.map(([label, value]) => (
+            <Fact key={label} label={label} value={value} />
+          ))}
+        </div>
+      )}
 
       <div className="flex flex-wrap items-center gap-2 pt-1 border-t border-slate-800/70">
         <button
