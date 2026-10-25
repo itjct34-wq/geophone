@@ -40,6 +40,7 @@ import {
 } from '../data/userCellsImporter';
 import { MapTileLayer } from '../types/phone';
 import {
+  applyEstimates,
   defaultRangeMeters,
   estimatePosition,
   lookupCell,
@@ -327,10 +328,12 @@ export const LiveHandsetTrackerView: React.FC<LiveHandsetTrackerViewProps> = ({ 
     writeCellCache(cache);
 
     setUserCells((prev) =>
-      prev.map((c) => {
-        const r = resolved[c.id];
-        return r ? { ...c, lat: r.lat, lng: r.lng, rangeM: r.rangeM, source: r.source, isApproximate: false } : c;
-      }),
+      applyEstimates(
+        prev.map((c) => {
+          const r = resolved[c.id];
+          return r ? { ...c, lat: r.lat, lng: r.lng, rangeM: r.rangeM, source: r.source, isApproximate: false } : c;
+        }),
+      ),
     );
 
     const found = Object.keys(resolved).length;
@@ -340,8 +343,12 @@ export const LiveHandsetTrackerView: React.FC<LiveHandsetTrackerViewProps> = ({ 
     setResolveMessage(
       failure
         ? `Stopped: ${failure} (${found} resolved before the error).`
-        : `Resolved ${found} of ${targets.length} towers${breakdown ? ` (${breakdown})` : ''}. ${
-            found < targets.length ? `${targets.length - found} are not in any database and stay approximate.` : ''
+        : found === 0
+        ? `No new towers found. ${targets.length} are not in any database, so they are shown at an estimated position near the towers that were found.`
+        : `Found ${found} of ${targets.length} towers in databases${breakdown ? ` (${breakdown})` : ''}.${
+            found < targets.length
+              ? ` The other ${targets.length - found} are not in any database and are estimated near the found towers.`
+              : ''
           }`,
     );
     setResolveProgress(null);

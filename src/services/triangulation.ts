@@ -101,3 +101,56 @@ export async function lookupCell(
     source: data.source ?? 'unknown',
   };
 }
+
+interface LocatedCell {
+  mcc: number;
+  mnc: number;
+  lac: number;
+  lat: number;
+  lng: number;
+  isApproximate: boolean;
+  city: string;
+  region: string;
+  source?: string;
+  rangeM?: number;
+}
+
+const median = (values: number[]): number => {
+  const s = [...values].sort((a, b) => a - b);
+  const mid = Math.floor(s.length / 2);
+  return s.length % 2 ? s[mid] : (s[mid - 1] + s[mid]) / 2;
+};
+
+/**
+ * Cells from one scan are all near the scanning handset, and cells that share a
+ * location area code (LAC) are near each other. Cells with no database entry are
+ * therefore placed at the median of resolved cells in the same LAC, or of all
+ * resolved cells when their LAC has none. They stay flagged as approximate.
+ */
+export function applyEstimates<T extends LocatedCell>(cells: T[]): T[] {
+  const real = cells.filter((c) => !c.isApproximate);
+  if (real.length === 0) return cells;
+
+  const byLac: Record<string, T[]> = {};
+  for (const c of real) (byLac[`${c.mcc}-${c.mnc}-${c.lac}`] ??= []).push(c);
+
+  const scanLat = median(real.map((c) => c.lat));
+  const scanLng = median(real.map((c) => c.lng));
+
+  return cells.map((c) => {
+    if (!c.isApproximate) return c;
+    const siblings = byLac[`${c.mcc}-${c.mnc}-${c.lac}`];
+    return {
+      ...c,
+      lat: siblings ? median(siblings.map((s) => s.lat)) : scanLat,
+      lng: siblings ? median(siblings.map((s) => s.lng)) : scanLng,
+      city: 'Estimated from resolved towers',
+      region: siblings
+        ? 'Same location area (LAC) as resolved towers'
+        : 'Centre of the resolved towers in this scan',
+      source: 'estimated',
+      rangeM: siblings ? 3000 : 8000,
+      isApproximate: true,
+    };
+  });
+}
