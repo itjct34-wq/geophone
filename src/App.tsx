@@ -19,14 +19,26 @@ import { PublicSourceOsintView } from './components/PublicSourceOsintView';
 import { PublicResourceHub } from './components/PublicResourceHub';
 import { CampaignCenter } from './components/CampaignCenter';
 import { TermsGate } from './components/TermsGate';
+import { LandingPage } from './components/LandingPage';
+import { LoginPage } from './components/LoginPage';
 import { useAuth } from './auth/AuthContext';
 const GodEyeView = lazy(() => import('./components/GodEyeView').then((m) => ({ default: m.GodEyeView })));
 import { parsePhoneNumber } from './services/phoneParser';
 
+/** Tabs that require a signed-in account; a logged-out visitor is sent home instead. */
+const ACCOUNT_TABS: TabId[] = ['batch', 'history', 'plan', 'admin'];
+
 export default function App() {
-  const [activeTab, setActiveTab] = useState<TabId>('lookup');
+  const { user, isAdmin, hasPaid } = useAuth();
+  const [activeTab, setActiveTab] = useState<TabId>(user ? 'lookup' : 'home');
   const [inputNumber, setInputNumber] = useState('');
-  const { isAdmin, hasPaid } = useAuth();
+
+  // Keep the active tab consistent with the sign-in state.
+  React.useEffect(() => {
+    if (user && activeTab === 'signin') setActiveTab('lookup');
+    if (!user && ACCOUNT_TABS.includes(activeTab)) setActiveTab('home');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user]);
 
   // Compute parsed phone intelligence
   const phoneResult = useMemo(() => {
@@ -54,6 +66,7 @@ export default function App() {
   // Save valid lookups to the user's history once typing settles
   const lastSavedRef = React.useRef<string | null>(null);
   React.useEffect(() => {
+    if (!user) return; // history is per-account; logged-out lookups are not saved
     if (!phoneResult.isValid || !phoneResult.e164) return;
     if (lastSavedRef.current === phoneResult.e164) return;
     const timer = setTimeout(() => {
@@ -83,6 +96,22 @@ export default function App() {
     setActiveTab('lookup');
   };
 
+  const openSignIn = () => setActiveTab('signin');
+
+  // Logged-out visitors get the public marketing page and the sign-in screen.
+  if (!user && activeTab === 'home') {
+    return (
+      <LandingPage
+        onSignIn={openSignIn}
+        onGetStarted={openSignIn}
+        onOpenTool={(tab) => setActiveTab(tab)}
+      />
+    );
+  }
+  if (!user && activeTab === 'signin') {
+    return <LoginPage onBack={() => setActiveTab('home')} />;
+  }
+
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col selection:bg-cyan-500 selection:text-slate-950">
       {/* Navigation Header adhering to 3-zone contract */}
@@ -111,6 +140,7 @@ export default function App() {
             <LockedFeature
               title="Live GPS and towers are part of paid access"
               description="Send a consent link to see where a person is when they agree to share, with live updates and their last known position. Also includes the cell tower map and triangulation."
+              onSignIn={openSignIn}
             />
           ))}
 
@@ -136,18 +166,37 @@ export default function App() {
             <LockedFeature
               title="The God Eye globe is part of paid access"
               description="A 3D satellite globe that flies to the places you look up, with terrain, labels and orbit."
+              onSignIn={openSignIn}
             />
           ))}
 
         {activeTab === 'history' && <HistoryView onSelectNumber={handleSelectBatchNumber} />}
 
-        {activeTab === 'investigations' && <InvestigationCenter />}
+        {activeTab === 'investigations' &&
+          (hasPaid ? (
+            <InvestigationCenter />
+          ) : (
+            <LockedFeature
+              title="Investigations and monitoring are part of paid access"
+              description="Track public domain and IP records over time and keep a clear history of what changed, with automatic rechecks."
+              onSignIn={openSignIn}
+            />
+          ))}
 
         {activeTab === 'public_osint' && <PublicSourceOsintView />}
 
         {activeTab === 'resource_hub' && <PublicResourceHub />}
 
-        {activeTab === 'campaigns' && <CampaignCenter />}
+        {activeTab === 'campaigns' &&
+          (hasPaid ? (
+            <CampaignCenter />
+          ) : (
+            <LockedFeature
+              title="Campaigns and SMS are part of paid access"
+              description="Create expiring short links and send them to your own verified numbers by SMS. Sending messages uses a paid provider."
+              onSignIn={openSignIn}
+            />
+          ))}
 
         {activeTab === 'plan' && !isAdmin && <PlanView />}
 

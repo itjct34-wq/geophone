@@ -1,15 +1,17 @@
 import {createRoot} from 'react-dom/client';
 import App from './App.tsx';
 import {AuthProvider, useAuth} from './auth/AuthContext';
-import {LoginPage} from './components/LoginPage';
 import {SharePage} from './components/SharePage';
 import {TermsPage, PrivacyPage} from './components/LegalPage';
 import './index.css';
 
+// The app is public: logged-out visitors get the landing page and the free
+// tools, and App itself shows the sign-in screen on demand. We only wait for
+// the initial session check so the right header (Sign in vs Sign out) renders.
 function AuthGate() {
-  const {user, ready} = useAuth();
+  const {ready} = useAuth();
   if (!ready) return null;
-  return user ? <App /> : <LoginPage />;
+  return <App />;
 }
 
 const path = window.location.pathname;

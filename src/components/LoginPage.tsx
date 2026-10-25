@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
-import { Radio, Lock, User, Loader2 } from 'lucide-react';
+import { Radio, Lock, User, Loader2, ArrowLeft } from 'lucide-react';
 import { useAuth } from '../auth/AuthContext';
 
-export const LoginPage: React.FC = () => {
+export const LoginPage: React.FC<{ onBack?: () => void }> = ({ onBack }) => {
   const { signIn, signUp, notice: accountNotice } = useAuth();
   const [mode, setMode] = useState<'signin' | 'signup'>('signin');
   const [email, setEmail] = useState('');
@@ -32,6 +32,15 @@ export const LoginPage: React.FC = () => {
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex items-center justify-center px-4 selection:bg-cyan-500 selection:text-slate-950">
       <div className="w-full max-w-sm">
+        {onBack && (
+          <button
+            onClick={onBack}
+            className="mb-4 inline-flex items-center gap-1.5 text-sm text-slate-400 transition-colors hover:text-slate-200"
+          >
+            <ArrowLeft className="h-4 w-4" aria-hidden="true" />
+            Back to GeoPhone
+          </button>
+        )}
         <div className="flex items-center justify-center gap-2 mb-8">
           <div className="w-9 h-9 rounded-lg bg-cyan-500/10 border border-cyan-500/30 flex items-center justify-center text-cyan-400">
             <Radio className="w-5 h-5" />

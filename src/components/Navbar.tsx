@@ -1,9 +1,11 @@
 import React, { useEffect, useState } from 'react';
-import { Radio, Lock, LogOut } from 'lucide-react';
+import { Radio, Lock, LogOut, LogIn } from 'lucide-react';
 import { useAuth } from '../auth/AuthContext';
 import { adminListCustomers } from '../services/accessService';
 
 export type TabId =
+  | 'home'
+  | 'signin'
   | 'lookup'
   | 'live_gps'
   | 'batch'
@@ -29,6 +31,8 @@ interface TabDef {
   label: string;
   /** Needs paid access; shown with a lock while the customer is on the free plan. */
   paid?: boolean;
+  /** Needs a signed-in account (personal data); hidden from logged-out visitors. */
+  account?: boolean;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab }) => {
@@ -57,19 +61,19 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab }) => {
     };
   }, [isAdmin, activeTab]);
 
-  const tabs: TabDef[] = [
+  const tabs: TabDef[] = ([
     { id: 'lookup', label: 'Single Lookup' },
     { id: 'live_gps', label: 'Live GPS & Towers', paid: true },
-    { id: 'batch', label: 'Batch Analysis' },
+    { id: 'batch', label: 'Batch Analysis', account: true },
     { id: 'ip', label: 'IP & Network' },
     { id: 'god_eye', label: 'God Eye', paid: true },
-    { id: 'history', label: 'History' },
-    { id: 'investigations', label: 'Investigations' },
+    { id: 'history', label: 'History', account: true },
+    { id: 'investigations', label: 'Investigations', paid: true },
     { id: 'public_osint', label: 'Username / Email / Image' },
     { id: 'resource_hub', label: 'Resource Hub' },
-    { id: 'campaigns', label: 'Campaigns & SMS' },
-    isAdmin ? { id: 'admin', label: 'Customers' } : { id: 'plan', label: 'Plan' },
-  ];
+    { id: 'campaigns', label: 'Campaigns & SMS', paid: true },
+    ...(user ? [isAdmin ? { id: 'admin', label: 'Customers' } : { id: 'plan', label: 'Plan' }] : []),
+  ] as TabDef[]).filter((t) => !t.account || user);
 
   const content = (t: TabDef) => (
     <>
@@ -94,9 +98,9 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab }) => {
     <div className="sticky top-0 z-50 bg-slate-950/80 backdrop-blur-md border-b border-slate-800">
       <header className="flex items-center justify-between gap-4 lg:gap-8 px-4 sm:px-6 py-3 lg:py-4">
         <button
-          onClick={() => setActiveTab('lookup')}
+          onClick={() => setActiveTab(user ? 'lookup' : 'home')}
           className="flex items-center gap-2 select-none shrink-0"
-          aria-label="GeoPhone, go to Single Lookup"
+          aria-label={user ? 'GeoPhone, go to Single Lookup' : 'GeoPhone, go to home'}
         >
           <div className="w-8 h-8 rounded-lg bg-cyan-500/10 border border-cyan-500/30 flex items-center justify-center text-cyan-400">
             <Radio className="w-4 h-4" aria-hidden="true" />
@@ -124,15 +128,25 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab }) => {
         </nav>
 
         <div className="flex items-center gap-3 shrink-0">
-          <button
-            onClick={signOut}
-            title={`Signed in as ${user?.email}`}
-            className="flex items-center gap-2 px-3 h-10 text-sm font-medium text-slate-300 hover:text-slate-100 border border-slate-700 rounded-lg transition-colors whitespace-nowrap shrink-0"
-          >
-            <LogOut className="w-4 h-4" aria-hidden="true" />
-            <span className="hidden sm:inline">Sign out</span>
-            <span className="sm:hidden sr-only">Sign out</span>
-          </button>
+          {user ? (
+            <button
+              onClick={signOut}
+              title={`Signed in as ${user.email}`}
+              className="flex items-center gap-2 px-3 h-10 text-sm font-medium text-slate-300 hover:text-slate-100 border border-slate-700 rounded-lg transition-colors whitespace-nowrap shrink-0"
+            >
+              <LogOut className="w-4 h-4" aria-hidden="true" />
+              <span className="hidden sm:inline">Sign out</span>
+              <span className="sm:hidden sr-only">Sign out</span>
+            </button>
+          ) : (
+            <button
+              onClick={() => setActiveTab('signin')}
+              className="flex items-center gap-2 px-4 h-10 text-sm font-semibold text-slate-950 bg-cyan-400 hover:bg-cyan-300 rounded-lg transition-colors whitespace-nowrap shrink-0"
+            >
+              <LogIn className="w-4 h-4" aria-hidden="true" />
+              <span>Sign in</span>
+            </button>
+          )}
         </div>
       </header>
 

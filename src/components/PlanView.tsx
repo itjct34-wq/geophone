@@ -6,6 +6,8 @@ import { AccessRequestPanel } from './AccessRequestPanel';
 const FREE_FEATURES = [
   'Number lookup: carrier, country, line type and validity',
   'IP and network lookup',
+  'Username, email and image open-source search',
+  'Resource hub',
   'Lookup history and saved batch lists',
 ];
 
@@ -15,6 +17,8 @@ const PAID_FEATURES = [
   'Paste a location a person sent you',
   'Cell tower map and triangulation',
   'God Eye 3D satellite globe',
+  'Investigations and monitoring of public domain and IP records',
+  'Campaign short links and test SMS sending',
 ];
 
 const List: React.FC<{ items: string[]; locked?: boolean }> = ({ items, locked }) => (
