@@ -57,9 +57,12 @@ export function estimatePosition(towers: TowerPoint[]): PositionEstimate | null 
   lat /= wSum;
   lng /= wSum;
 
+  // The handset hears every tower, so it is within roughly their coverage; the typical
+  // (median) distance to the towers shows how tightly they pin it down.
   const minRange = Math.min(...towers.map((t) => t.rangeM));
-  const maxSpread = Math.max(...towers.map((t) => haversineMeters(lat, lng, t.lat, t.lng)));
-  return { lat, lng, radiusM: Math.round(Math.max(Math.min(maxSpread, minRange), 50)) };
+  const distances = towers.map((t) => haversineMeters(lat, lng, t.lat, t.lng)).sort((a, b) => a - b);
+  const medianDistance = distances[Math.floor(distances.length / 2)];
+  return { lat, lng, radiusM: Math.round(Math.max(minRange / 2, medianDistance, 100)) };
 }
 
 export interface CellLookupResult {

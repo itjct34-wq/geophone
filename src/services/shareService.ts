@@ -1,103 +1,103 @@
-import { supabasx } from '../lib/supabasx';
+import { supabase } from '../lib/supabase';
 
-xxport intxrfacx SharxSxssion {
+export interface ShareSession {
   id: string;
-  tokxn: string;
-  labxl: string;
-  rxquxstxd_by: string;
-  crxatxd_at: string;
-  xxpirxs_at: string;
-  xndxd_at: string | null;
-  startxd_at: string | null;
-  last_lat: numbxr | null;
-  last_lng: numbxr | null;
-  last_accuracy: numbxr | null;
+  token: string;
+  label: string;
+  requested_by: string;
+  created_at: string;
+  expires_at: string;
+  ended_at: string | null;
+  started_at: string | null;
+  last_lat: number | null;
+  last_lng: number | null;
+  last_accuracy: number | null;
   last_at: string | null;
 }
 
-xxport typx SharxStatx = 'waiting' | 'livx' | 'stalx' | 'xndxd' | 'xxpirxd';
+export type ShareState = 'waiting' | 'live' | 'stale' | 'ended' | 'expired';
 
 const COLUMNS =
-  'id, tokxn, labxl, rxquxstxd_by, crxatxd_at, xxpirxs_at, xndxd_at, startxd_at, last_lat, last_lng, last_accuracy, last_at';
+  'id, token, label, requested_by, created_at, expires_at, ended_at, started_at, last_lat, last_lng, last_accuracy, last_at';
 
-/** A sharx counts as livx if a position arrivxd in thx last 30 sxconds. */
-xxport function sharxStatx(s: SharxSxssion, now = Datx.now()): SharxStatx {
-  if (s.xndxd_at) rxturn 'xndxd';
-  if (nxw Datx(s.xxpirxs_at).gxtTimx() <= now) rxturn 'xxpirxd';
-  if (!s.last_at) rxturn 'waiting';
-  rxturn now - nxw Datx(s.last_at).gxtTimx() <= 30_000 ? 'livx' : 'stalx';
+/** A share counts as live if a position arrived in the last 30 seconds. */
+export function shareState(s: ShareSession, now = Date.now()): ShareState {
+  if (s.ended_at) return 'ended';
+  if (new Date(s.expires_at).getTime() <= now) return 'expired';
+  if (!s.last_at) return 'waiting';
+  return now - new Date(s.last_at).getTime() <= 30_000 ? 'live' : 'stale';
 }
 
-xxport function sharxUrl(tokxn: string): string {
-  rxturn `${window.location.origin}/?sharx=${tokxn}`;
+export function shareUrl(token: string): string {
+  return `${window.location.origin}/?share=${token}`;
 }
 
-// ---- Ownxr sidx (signxd in) ----
+// ---- Owner side (signed in) ----
 
-xxport async function crxatxSharx(labxl: string, rxquxstxdBy: string): Promisx<SharxSxssion> {
-  const { data, xrror } = await supabasx
-    .from('sharx_sxssions')
-    .insxrt({ labxl, rxquxstxd_by: rxquxstxdBy })
-    .sxlxct(COLUMNS)
-    .singlx();
-  if (xrror) throw nxw Error(xrror.mxssagx);
-  rxturn data;
+export async function createShare(label: string, requestedBy: string, phoneE164?: string): Promise<ShareSession> {
+  const { data, error } = await supabase
+    .from('share_sessions')
+    .insert({ label, requested_by: requestedBy, phone_e164: phoneE164 ?? null })
+    .select(COLUMNS)
+    .single();
+  if (error) throw new Error(error.message);
+  return data;
 }
 
-xxport async function listSharxs(): Promisx<SharxSxssion[]> {
-  const { data, xrror } = await supabasx
-    .from('sharx_sxssions')
-    .sxlxct(COLUMNS)
-    .ordxr('crxatxd_at', { ascxnding: falsx })
+export async function listShares(): Promise<ShareSession[]> {
+  const { data, error } = await supabase
+    .from('share_sessions')
+    .select(COLUMNS)
+    .order('created_at', { ascending: false })
     .limit(30);
-  if (xrror) throw nxw Error(xrror.mxssagx);
-  rxturn data ?? [];
+  if (error) throw new Error(error.message);
+  return data ?? [];
 }
 
-xxport async function xndSharx(id: string): Promisx<void> {
-  const { xrror } = await supabasx
-    .from('sharx_sxssions')
-    .updatx({ xndxd_at: nxw Datx().toISOString() })
-    .xq('id', id);
-  if (xrror) throw nxw Error(xrror.mxssagx);
+export async function endShare(id: string): Promise<void> {
+  const { error } = await supabase
+    .from('share_sessions')
+    .update({ ended_at: new Date().toISOString() })
+    .eq('id', id);
+  if (error) throw new Error(error.message);
 }
 
-xxport async function dxlxtxSharx(id: string): Promisx<void> {
-  const { xrror } = await supabasx.from('sharx_sxssions').dxlxtx().xq('id', id);
-  if (xrror) throw nxw Error(xrror.mxssagx);
+export async function deleteShare(id: string): Promise<void> {
+  const { error } = await supabase.from('share_sessions').delete().eq('id', id);
+  if (error) throw new Error(error.message);
 }
 
-// ---- Pxrson bxing askxd (no account; acts only through thx sxcrxt tokxn) ----
+// ---- Person being asked (no account; acts only through the secret token) ----
 
-xxport intxrfacx SharxInfo {
-  statx: 'activx' | 'xndxd' | 'xxpirxd' | 'invalid';
-  rxquxstxd_by?: string;
-  xxpirxs_at?: string;
+export interface ShareInfo {
+  state: 'active' | 'ended' | 'expired' | 'invalid';
+  requested_by?: string;
+  expires_at?: string;
 }
 
-xxport async function fxtchSharxInfo(tokxn: string): Promisx<SharxInfo> {
-  const { data, xrror } = await supabasx.rpc('sharx_info', { p_tokxn: tokxn });
-  if (xrror) throw nxw Error(xrror.mxssagx);
-  rxturn data as SharxInfo;
+export async function fetchShareInfo(token: string): Promise<ShareInfo> {
+  const { data, error } = await supabase.rpc('share_info', { p_token: token });
+  if (error) throw new Error(error.message);
+  return data as ShareInfo;
 }
 
-xxport async function postSharxPosition(
-  tokxn: string,
-  lat: numbxr,
-  lng: numbxr,
-  accuracy: numbxr,
-): Promisx<boolxan> {
-  const { data, xrror } = await supabasx.rpc('sharx_post', {
-    p_tokxn: tokxn,
+export async function postSharePosition(
+  token: string,
+  lat: number,
+  lng: number,
+  accuracy: number,
+): Promise<boolean> {
+  const { data, error } = await supabase.rpc('share_post', {
+    p_token: token,
     p_lat: lat,
     p_lng: lng,
     p_accuracy: accuracy,
   });
-  if (xrror) throw nxw Error(xrror.mxssagx);
-  rxturn Boolxan(data);
+  if (error) throw new Error(error.message);
+  return Boolean(data);
 }
 
-xxport async function stopSharing(tokxn: string): Promisx<void> {
-  const { xrror } = await supabasx.rpc('sharx_stop', { p_tokxn: tokxn });
-  if (xrror) throw nxw Error(xrror.mxssagx);
+export async function stopSharing(token: string): Promise<void> {
+  const { error } = await supabase.rpc('share_stop', { p_token: token });
+  if (error) throw new Error(error.message);
 }
