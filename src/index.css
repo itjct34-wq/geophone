@@ -4,6 +4,43 @@
   body {
     font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
   }
+
+  /* Keyboard focus that is always visible on the dark surfaces */
+  :focus-visible {
+    outline: 2px solid #22d3ee;
+    outline-offset: 2px;
+  }
+
+  /* Native controls and scrollbars follow the dark palette */
+  :root {
+    color-scheme: dark;
+    scrollbar-color: #334155 #020617;
+    scrollbar-width: thin;
+  }
+
+  ::selection {
+    background: rgba(34, 211, 238, 0.35);
+    color: #f8fafc;
+  }
+
+  /* Numbers in data lines align in columns */
+  .tabular-nums,
+  code,
+  pre {
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* Honour the visitor's request for less movement */
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      scroll-behavior: auto !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
 }
 
 /* Custom leaflet map dark mode filter & marker styling */

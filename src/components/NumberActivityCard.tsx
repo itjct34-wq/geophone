@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Phone, MessageCircle, MessageSquare, Clock, History, Send } from 'lucide-react';
+import { Phone, MessageCircle, MessageSquare, Clock, History } from 'lucide-react';
 import type { PhoneLookupResult } from '../types/phone';
 import { timeAgo } from '../services/lastLocationService';
 import {
@@ -11,7 +11,6 @@ import {
 
 interface NumberActivityCardProps {
   result: PhoneLookupResult;
-  onAskToShare: () => void;
 }
 
 const LINE_TYPE_LABEL: Record<string, string> = {
@@ -56,7 +55,7 @@ const Fact: React.FC<{ label: string; value: React.ReactNode }> = ({ label, valu
   </div>
 );
 
-export const NumberActivityCard: React.FC<NumberActivityCardProps> = ({ result, onAskToShare }) => {
+export const NumberActivityCard: React.FC<NumberActivityCardProps> = ({ result }) => {
   const e164 = result.e164 ?? '';
   const digits = e164.replace(/\D/g, '');
   const [stats, setStats] = useState<LookupStats | null>(null);
@@ -126,20 +125,26 @@ export const NumberActivityCard: React.FC<NumberActivityCardProps> = ({ result, 
           <Fact label="Carrier (from prefix)" value={result.carrier} />
           <Fact label="Time zone" value={result.timezones.join(', ') || 'Unknown'} />
           {contact && (
-            <Fact
-              label="Local time there"
-              value={
-                <span className="inline-flex items-center gap-1.5">
-                  <Clock className="w-3 h-3 text-slate-500" />
-                  {contact.time}
-                  <span className={contact.reasonable ? 'text-emerald-300' : 'text-amber-300'}>
-                    {contact.reasonable ? '· a reasonable time to reach them' : '· late or early, better to wait'}
+            <>
+              <Fact
+                label="Local time there"
+                value={
+                  <span className="inline-flex items-center gap-1.5 tabular-nums">
+                    <Clock className="w-3 h-3 text-slate-400" aria-hidden="true" />
+                    {contact.time}
                   </span>
-                </span>
-              }
-            />
-          )}
-        </div>
+                }
+              />
+              <Fact
+                label="Good time to reach them"
+                value={
+                  <span className={contact.reasonable ? 'text-emerald-300' : 'text-amber-300'}>
+                    {contact.reasonable ? 'Yes, daytime there' : 'Better to wait'}
+                  </span>
+                }
+              />
+            </>
+          )}        </div>
 
         <div>
           <Fact
@@ -151,7 +156,7 @@ export const NumberActivityCard: React.FC<NumberActivityCardProps> = ({ result, 
                 'Not saved yet'
               ) : (
                 <span className="inline-flex items-center gap-1.5">
-                  <History className="w-3 h-3 text-slate-500" />
+                  <History className="w-3 h-3 text-slate-400" />
                   {stats.count}× · first {timeAgo(stats.firstAt!)}
                 </span>
               )
@@ -160,7 +165,7 @@ export const NumberActivityCard: React.FC<NumberActivityCardProps> = ({ result, 
           <div className="pt-2 space-y-1.5">
             <p className="text-xs text-slate-400">Location requests you sent for this number</p>
             {shares.length === 0 ? (
-              <p className="text-xs text-slate-500">None yet. Send a consent link to get a real position.</p>
+              <p className="text-xs text-slate-400">None yet. Send a consent link to get a real position.</p>
             ) : (
               <ul className="space-y-1">
                 {shares.map((s) => {
@@ -172,7 +177,7 @@ export const NumberActivityCard: React.FC<NumberActivityCardProps> = ({ result, 
                   return (
                     <li key={s.id} className="flex items-center justify-between gap-3 text-xs">
                       <span className={st.tone}>{st.text}</span>
-                      <span className="text-slate-500 whitespace-nowrap">{timeAgo(s.createdAt)}</span>
+                      <span className="text-slate-400 whitespace-nowrap">{timeAgo(s.createdAt)}</span>
                     </li>
                   );
                 })}
@@ -192,13 +197,6 @@ export const NumberActivityCard: React.FC<NumberActivityCardProps> = ({ result, 
       )}
 
       <div className="flex flex-wrap items-center gap-2 pt-1 border-t border-slate-800/70">
-        <button
-          onClick={onAskToShare}
-          className={`${actionClass} text-slate-950 bg-emerald-400 hover:bg-emerald-300 border-emerald-400`}
-        >
-          <Send className="w-3.5 h-3.5" />
-          <span>Send consent link</span>
-        </button>
         <a
           href={`https://wa.me/${digits}`}
           target="_blank"

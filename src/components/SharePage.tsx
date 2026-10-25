@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { Radio, MapPin, ShieldCheck, Loader2, Square } from 'lucide-react';
+import { Radio, Loader2, Square } from 'lucide-react';
 import {
   fetchShareInfo,
   postSharePosition,
@@ -169,21 +169,29 @@ export const SharePage: React.FC<{ token: string }> = ({ token }) => {
   };
 
   const shell = (children: React.ReactNode) => (
-    <div className="min-h-screen bg-slate-950 text-slate-100 flex items-center justify-center px-4 py-8">
-      <div className="w-full max-w-sm space-y-4">
-        <div className="flex items-center justify-center gap-2">
+    <main className="min-h-screen bg-slate-950 text-slate-100 flex items-start sm:items-center justify-center px-4 pt-10 pb-12 sm:py-10">
+      <div className="w-full max-w-sm space-y-5">
+        <div className="flex items-center justify-center gap-2.5">
           <div className="w-9 h-9 rounded-lg bg-cyan-500/10 border border-cyan-500/30 flex items-center justify-center text-cyan-400">
-            <Radio className="w-5 h-5" />
+            <Radio className="w-5 h-5" aria-hidden="true" />
           </div>
           <span className="text-lg font-bold tracking-tight">GeoPhone</span>
         </div>
-        <div className="bg-slate-900 border border-slate-800 rounded-xl p-6 space-y-4">{children}</div>
+        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 sm:p-6 space-y-5 shadow-xl shadow-black/30">
+          {children}
+        </div>
       </div>
-    </div>
+    </main>
   );
 
-  if (loadError) return shell(<p role="alert" className="text-sm text-rose-400">{loadError}</p>);
-  if (!info) return shell(<div className="flex justify-center text-slate-500"><Loader2 className="w-5 h-5 animate-spin" /></div>);
+  if (loadError) return shell(<p role="alert" className="text-sm text-rose-300">{loadError}</p>);
+  if (!info) {
+    return shell(
+      <div role="status" aria-label="Loading" className="flex justify-center py-4 text-slate-400">
+        <Loader2 className="w-5 h-5 animate-spin" aria-hidden="true" />
+      </div>,
+    );
+  }
 
   if (info.state !== 'active') {
     const message =
@@ -194,8 +202,8 @@ export const SharePage: React.FC<{ token: string }> = ({ token }) => {
         : 'This link is not valid.';
     return shell(
       <>
-        <h1 className="text-base font-bold">{message}</h1>
-        <p className="text-xs text-slate-400">Nothing is being shared. You can close this page.</p>
+        <h1 className="text-lg font-bold tracking-tight">{message}</h1>
+        <p className="text-sm text-slate-300">Nothing is being shared. You can close this page.</p>
       </>,
     );
   }
@@ -203,114 +211,154 @@ export const SharePage: React.FC<{ token: string }> = ({ token }) => {
   if (stopped) {
     return shell(
       <>
-        <h1 className="text-base font-bold">Sharing stopped</h1>
-        <p className="text-xs text-slate-400">Your location is no longer being sent. You can close this page.</p>
+        <h1 className="text-lg font-bold tracking-tight">Sharing stopped</h1>
+        <p className="text-sm text-slate-300">Nothing more is being sent. You can close this page.</p>
       </>,
     );
   }
 
   const who = info.requested_by || 'Someone';
+  const nothingChosen = !shareLocation && !shareName && !shareDevice && !shareLanguage && !shareConnection;
+
+  const choice = (opts: {
+    checked: boolean;
+    onChange: (v: boolean) => void;
+    title: string;
+    detail: string;
+    children?: React.ReactNode;
+  }) => (
+    <div>
+      <label className="flex items-start gap-3 px-4 py-3 min-h-[3.25rem] cursor-pointer hover:bg-slate-800/40 transition-colors has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-inset has-[:focus-visible]:ring-cyan-400">
+        <input
+          type="checkbox"
+          checked={opts.checked}
+          onChange={(e) => opts.onChange(e.target.checked)}
+          className="mt-0.5 h-5 w-5 shrink-0 accent-emerald-400 focus:outline-none"
+        />
+        <span className="min-w-0">
+          <span className="block text-sm font-medium text-slate-100">{opts.title}</span>
+          <span className="block text-xs text-slate-400 break-words">{opts.detail}</span>
+        </span>
+      </label>
+      {opts.checked && opts.children}
+    </div>
+  );
 
   return shell(
     <>
-      <div className="space-y-1">
-        <h1 className="text-base font-bold">{who} is asking you to share some information</h1>
+      <div className="space-y-2">
+        <h1 className="text-xl font-bold tracking-tight text-balance">{who} would like to see your location</h1>
+        <p className="text-sm text-slate-300 leading-relaxed">
+          You choose exactly what to share, and you can stop at any time.
+        </p>
       </div>
 
-      <ul className="text-xs text-slate-300 space-y-1.5">
-        <li className="flex gap-2"><ShieldCheck className="w-4 h-4 text-emerald-400 shrink-0" /> Only what you tick below is shared, nothing else on your phone.</li>
-        <li className="flex gap-2"><MapPin className="w-4 h-4 text-cyan-400 shrink-0" /> Your position updates while this page is open and stops when you close it or tap Stop.</li>
-        <li className="flex gap-2"><ShieldCheck className="w-4 h-4 text-emerald-400 shrink-0" /> The link stops working on its own after 24 hours.</li>
-      </ul>
-
       {!sharing && !infoSent && (
-        <fieldset className="space-y-2.5 border border-slate-800 rounded-lg p-3">
-          <legend className="px-1 text-[11px] font-semibold text-slate-400 uppercase tracking-wider">What to share</legend>
+        <fieldset className="rounded-xl border border-slate-800 divide-y divide-slate-800/80 overflow-hidden">
+          <legend className="sr-only">What to share</legend>
 
-          <label className="flex items-start gap-2 text-xs text-slate-200 cursor-pointer">
-            <input type="checkbox" checked={shareLocation} onChange={(e) => setShareLocation(e.target.checked)} className="mt-0.5 accent-emerald-400" />
-            <span>My position <span className="text-slate-500">(your phone will ask permission)</span></span>
-          </label>
+          {choice({
+            checked: shareLocation,
+            onChange: setShareLocation,
+            title: 'My position',
+            detail: 'Your phone asks permission first. It updates while this page stays open.',
+          })}
 
-          <label className="flex items-start gap-2 text-xs text-slate-200 cursor-pointer">
-            <input type="checkbox" checked={shareName} onChange={(e) => setShareName(e.target.checked)} className="mt-0.5 accent-emerald-400" />
-            <span>My name</span>
-          </label>
-          {shareName && (
-            <input
-              value={nameValue}
-              onChange={(e) => setNameValue(e.target.value)}
-              maxLength={60}
-              placeholder="Type the name you want to show"
-              aria-label="Your name"
-              className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-lg text-xs text-slate-100 focus:outline-none focus:border-emerald-500"
-            />
-          )}
+          {choice({
+            checked: shareName,
+            onChange: setShareName,
+            title: 'My name',
+            detail: 'Shown to the person who asked.',
+            children: (
+              <div className="px-4 pb-3 pl-12">
+                <input
+                  value={nameValue}
+                  onChange={(e) => setNameValue(e.target.value)}
+                  maxLength={60}
+                  placeholder="Type your name"
+                  aria-label="Your name"
+                  autoComplete="name"
+                  className="w-full px-3 py-2.5 bg-slate-950 border border-slate-700 rounded-lg text-sm text-slate-100 placeholder:text-slate-500 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400"
+                />
+              </div>
+            ),
+          })}
 
-          <label className="flex items-start gap-2 text-xs text-slate-200 cursor-pointer">
-            <input type="checkbox" checked={shareDevice} onChange={(e) => setShareDevice(e.target.checked)} className="mt-0.5 accent-emerald-400" />
-            <span>My browser and system <span className="text-slate-500">({describeDevice()})</span></span>
-          </label>
+          {choice({
+            checked: shareDevice,
+            onChange: setShareDevice,
+            title: 'My browser and system',
+            detail: describeDevice(),
+          })}
 
-          <label className="flex items-start gap-2 text-xs text-slate-200 cursor-pointer">
-            <input type="checkbox" checked={shareLanguage} onChange={(e) => setShareLanguage(e.target.checked)} className="mt-0.5 accent-emerald-400" />
-            <span>My language and time zone <span className="text-slate-500">({navigator.language}, {Intl.DateTimeFormat().resolvedOptions().timeZone})</span></span>
-          </label>
+          {choice({
+            checked: shareLanguage,
+            onChange: setShareLanguage,
+            title: 'My language and time zone',
+            detail: `${navigator.language}, ${Intl.DateTimeFormat().resolvedOptions().timeZone}`,
+          })}
 
-          <label className="flex items-start gap-2 text-xs text-slate-200 cursor-pointer">
-            <input type="checkbox" checked={shareConnection} onChange={(e) => setShareConnection(e.target.checked)} className="mt-0.5 accent-emerald-400" />
-            <span>My connection type <span className="text-slate-500">({describeConnection()})</span></span>
-          </label>
+          {choice({
+            checked: shareConnection,
+            onChange: setShareConnection,
+            title: 'My connection type',
+            detail: describeConnection(),
+          })}
         </fieldset>
       )}
 
       {sharing ? (
         <div className="space-y-3">
-          <div className="p-3 bg-emerald-950/30 border border-emerald-800/40 rounded-lg text-xs text-emerald-300 space-y-1">
-            <div className="flex items-center gap-2 font-semibold">
-              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" /> Your location is being shared
+          <div
+            role="status"
+            aria-live="polite"
+            className="p-4 bg-emerald-950/30 border border-emerald-800/50 rounded-xl text-sm text-emerald-200 space-y-1"
+          >
+            <div className="flex items-center gap-2 font-semibold text-emerald-300">
+              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" aria-hidden="true" /> Your location is being shared
             </div>
-            <div className="text-emerald-200/80">
+            <div className="text-xs text-emerald-200/90">
               {accuracy !== null ? `Accuracy about ${accuracy} m. ` : 'Finding your position... '}
               {lastSent && `Last sent ${lastSent.toLocaleTimeString()}.`}
             </div>
           </div>
           <button
             onClick={stop}
-            className="w-full flex items-center justify-center gap-2 px-4 py-3 text-sm font-semibold text-slate-100 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-lg transition-colors"
+            className="w-full h-12 flex items-center justify-center gap-2 text-base font-semibold text-slate-100 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-xl transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400"
           >
-            <Square className="w-4 h-4" /> Stop sharing
+            <Square className="w-4 h-4" aria-hidden="true" /> Stop sharing
           </button>
         </div>
       ) : infoSent ? (
         <div className="space-y-3">
-          <div className="p-3 bg-emerald-950/30 border border-emerald-800/40 rounded-lg text-xs text-emerald-300">
+          <div role="status" aria-live="polite" className="p-4 bg-emerald-950/30 border border-emerald-800/50 rounded-xl text-sm text-emerald-200">
             The details you chose were sent. Nothing else is being shared.
           </div>
           <button
             onClick={stop}
-            className="w-full flex items-center justify-center gap-2 px-4 py-3 text-sm font-semibold text-slate-100 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-lg transition-colors"
+            className="w-full h-12 flex items-center justify-center gap-2 text-base font-semibold text-slate-100 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-xl transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400"
           >
-            <Square className="w-4 h-4" /> Done
+            <Square className="w-4 h-4" aria-hidden="true" /> Done
           </button>
         </div>
       ) : (
         <button
           onClick={start}
-          disabled={!shareLocation && !shareName && !shareDevice && !shareLanguage && !shareConnection}
-          className="w-full px-4 py-3 text-sm font-semibold text-slate-950 bg-emerald-400 hover:bg-emerald-300 disabled:opacity-50 rounded-lg transition-colors"
+          disabled={nothingChosen}
+          className="w-full h-12 text-base font-semibold text-slate-950 bg-emerald-400 hover:bg-emerald-300 disabled:bg-slate-800 disabled:text-slate-500 rounded-xl transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-900"
         >
-          {shareLocation ? 'Share my location' : 'Send the selected details'}
+          {nothingChosen ? 'Choose what to share' : shareLocation ? 'Share my location' : 'Send the selected details'}
         </button>
       )}
 
       {error && (
-        <p role="alert" className="text-xs text-rose-400">
+        <p role="alert" className="text-sm text-rose-300">
           {error}
         </p>
       )}
-      <p className="text-[11px] text-slate-500">
-        Not expecting this? Close the page. Nothing is shared unless you tap the button and allow location access.
+
+      <p className="text-xs text-slate-400 leading-relaxed">
+        Not expecting this? Close the page and nothing is shared. This link stops working on its own after 24 hours.
       </p>
     </>,
   );

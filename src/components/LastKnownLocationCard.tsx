@@ -85,10 +85,10 @@ export const LastKnownLocationCard: React.FC<LastKnownLocationCardProps> = ({
             <MapPin className="w-4 h-4" />
           </div>
           <div className="space-y-0.5">
-            <h3 className="text-sm font-bold text-slate-100">No last location for {number}</h3>
+            <h3 className="text-sm font-bold text-slate-100">No location shared yet</h3>
             <p className="text-xs text-slate-400 max-w-xl">
-              A phone number alone does not reveal where it is. If the person opens a link you send and agrees to
-              share, their last position is saved here automatically.
+              {number} only has a position here once the person chooses to share it. Send a consent link, or paste a
+              location they sent you.
             </p>
           </div>
         </div>
@@ -97,7 +97,7 @@ export const LastKnownLocationCard: React.FC<LastKnownLocationCardProps> = ({
           className="flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold text-slate-950 bg-emerald-400 hover:bg-emerald-300 rounded-lg transition-colors whitespace-nowrap shrink-0"
         >
           <Send className="w-3.5 h-3.5" />
-          <span>Ask to share location</span>
+          <span>Send consent link</span>
         </button>
         <div className="basis-full">
           <PastePanel onSavePasted={onSavePasted} />
@@ -131,7 +131,7 @@ export const LastKnownLocationCard: React.FC<LastKnownLocationCardProps> = ({
             {location.lat.toFixed(5)}, {location.lng.toFixed(5)}
             {location.accuracy !== null && ` · ±${Math.round(location.accuracy)} m`}
           </p>
-          <p className="text-[11px] text-slate-500">
+          <p className="text-xs text-slate-400">
             {location.label === PASTED_LABEL
               ? 'Pasted by you from a message or map link.'
               : `Shared by the person from their own phone${location.label ? ` (link: ${location.label})` : ''}.`}

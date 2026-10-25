@@ -300,7 +300,7 @@ export const PhoneLookupView: React.FC<PhoneLookupViewProps> = ({
     <div className="space-y-6">
       {/* Search Bar & Auto-Execution Controls */}
       <div className="bg-slate-900 border border-slate-800 rounded-xl p-5 shadow-lg space-y-4">
-        <div className="flex flex-col md:flex-row items-stretch md:items-center gap-3">
+        <div className="flex items-center gap-2">
           {/* Input field with country code icon */}
           <div className="relative flex-1">
             <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-500">
@@ -310,28 +310,23 @@ export const PhoneLookupView: React.FC<PhoneLookupViewProps> = ({
               type="text"
               value={inputNumber}
               onChange={(e) => setInputNumber(e.target.value)}
+              aria-label="Phone number"
+              inputMode="tel"
+              autoComplete="off"
               placeholder="Enter phone number with or without + (e.g. +CC NNNNNNNNN)"
-              className="w-full pl-10 pr-4 py-2.5 bg-slate-950 border border-slate-800 rounded-lg text-sm text-slate-100 placeholder-slate-500 font-mono focus:outline-none focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500/50"
+              className="w-full h-11 pl-10 pr-4 bg-slate-950 border border-slate-700 rounded-lg text-base sm:text-sm text-slate-100 placeholder:text-slate-400 font-mono focus:outline-none focus:border-cyan-500 focus:ring-2 focus:ring-cyan-500/40"
             />
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
-            {/* WhatsApp / SMS Live Share Link */}
-            <button
-              onClick={() => setIsShareModalOpen(true)}
-              title="Send real-time WhatsApp or SMS location tracking link with QR Code"
-              className="px-3.5 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-lg transition-colors flex items-center gap-1.5 whitespace-nowrap shrink-0 shadow-sm"
-            >
-              <Share2 className="w-3.5 h-3.5" />
-              <span>WhatsApp / SMS Link</span>
-            </button>
-
             <button
               onClick={() => handleCopy(result.e164 || inputNumber, 'e164_quick')}
-              className="px-3 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-medium rounded-lg transition-colors flex items-center gap-1.5 whitespace-nowrap shrink-0"
+              aria-label="Copy the number in international format"
+              title="Copy the number in international format"
+              className="h-11 px-3.5 bg-slate-800 hover:bg-slate-700 text-slate-200 text-sm font-medium rounded-lg border border-slate-700 transition-colors flex items-center gap-1.5 whitespace-nowrap shrink-0"
             >
               {copiedField === 'e164_quick' ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
-              <span>{copiedField === 'e164_quick' ? 'Copied' : 'Copy'}</span>
+              <span className="hidden sm:inline">{copiedField === 'e164_quick' ? 'Copied' : 'Copy'}</span>
             </button>
 
           </div>
@@ -350,7 +345,7 @@ export const PhoneLookupView: React.FC<PhoneLookupViewProps> = ({
       )}
 
       {result.isValid && result.e164 && (
-        <NumberActivityCard result={result} onAskToShare={() => setIsShareModalOpen(true)} />
+        <NumberActivityCard result={result} />
       )}
 
       {/* CRITICAL REALITY FIX: Real Handset GPS vs Public Centroid */}
@@ -385,7 +380,7 @@ export const PhoneLookupView: React.FC<PhoneLookupViewProps> = ({
                   liveGpsFix
                     ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
                     : (isPlusCodeActive && activePlusCodeFix)
-                    ? 'bg-purple-500/20 text-purple-300 border border-purple-500/30'
+                    ? 'bg-cyan-500/20 text-cyan-200 border border-cyan-500/30'
                     : result.subAllocation
                     ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/30'
                     : 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
@@ -404,7 +399,7 @@ export const PhoneLookupView: React.FC<PhoneLookupViewProps> = ({
                   </span>
                 ) : (isPlusCodeActive && activePlusCodeFix) ? (
                   <span>
-                    Location from Plus Code: <strong className="text-purple-300 font-mono">{activePlusCodeFix.shortCode}</strong> (Full global code: <code className="text-cyan-300 font-mono">{activePlusCodeFix.fullCode}</code>). The pin is dropped directly at <strong className="text-emerald-300 font-mono">{activePlusCodeFix.lat.toFixed(5)}, {activePlusCodeFix.lng.toFixed(5)}</strong> ({activePlusCodeFix.locality}) with building/street precision.
+                    Location from Plus Code: <strong className="text-cyan-200 font-mono">{activePlusCodeFix.shortCode}</strong> (Full global code: <code className="text-cyan-300 font-mono">{activePlusCodeFix.fullCode}</code>). The pin is dropped directly at <strong className="text-emerald-300 font-mono">{activePlusCodeFix.lat.toFixed(5)}, {activePlusCodeFix.lng.toFixed(5)}</strong> ({activePlusCodeFix.locality}) with building/street precision.
                   </span>
                 ) : result.subAllocation ? (
                   <span>
@@ -443,12 +438,12 @@ export const PhoneLookupView: React.FC<PhoneLookupViewProps> = ({
                     }}
                     className={`px-3 py-2.5 rounded-lg text-xs font-semibold transition-colors border flex items-center gap-1.5 whitespace-nowrap shadow-sm ${
                       isPlusCodeActive
-                        ? 'bg-purple-600 hover:bg-purple-500 text-white border-purple-500 shadow-purple-500/20'
+                        ? 'bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-100 border-cyan-500/40'
                         : 'bg-slate-800 hover:bg-slate-700 text-slate-300 border-slate-700'
                     }`}
                     title="Toggle the entered Plus Code pin"
                   >
-                    <MapPin className="w-3.5 h-3.5 text-purple-300" />
+                    <MapPin className="w-3.5 h-3.5 text-cyan-300" />
                     <span>{isPlusCodeActive ? `✓ ${activePlusCodeFix.shortCode} Pinned` : `Pin ${activePlusCodeFix.shortCode}`}</span>
                   </button>
                 )}
@@ -456,12 +451,12 @@ export const PhoneLookupView: React.FC<PhoneLookupViewProps> = ({
                 <button
                   onClick={handleGetRealGps}
                   disabled={isLocatingDevice}
-                  className="px-3.5 py-2.5 bg-emerald-500 hover:bg-emerald-400 disabled:opacity-50 text-slate-950 text-xs font-bold rounded-lg transition-all shadow-md flex items-center gap-2 whitespace-nowrap animate-bounce hover:animate-none"
+                  className="px-3.5 py-2.5 bg-slate-800 hover:bg-slate-700 disabled:opacity-50 text-slate-100 text-sm font-semibold rounded-lg border border-slate-700 transition-colors flex items-center gap-2 whitespace-nowrap"
                 >
                   {isLocatingDevice ? (
-                    <RefreshCw className="w-4 h-4 animate-spin text-slate-950" />
+                    <RefreshCw className="w-4 h-4 animate-spin text-cyan-400" />
                   ) : (
-                    <Crosshair className="w-4 h-4 text-slate-950" />
+                    <Crosshair className="w-4 h-4 text-cyan-400" />
                   )}
                   <span>{isLocatingDevice ? 'Acquiring GPS...' : 'Track Real GPS'}</span>
                 </button>
@@ -472,18 +467,13 @@ export const PhoneLookupView: React.FC<PhoneLookupViewProps> = ({
         </div>
 
         {/* Plus Code Input & Verification Manager */}
-        <div className="bg-slate-950 p-3.5 rounded-xl border border-purple-900/40 space-y-2.5">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-            <div className="flex items-center gap-2">
-              <MapPin className="w-4 h-4 text-purple-400" />
-              <span className="text-xs font-bold text-slate-100">
-                Google Plus Code (Open Location Code) Location Manager:
-              </span>
-            </div>
-            <div className="text-[11px] text-slate-400 font-mono">
-              Active Plus Code: <span className="text-purple-300 font-bold">{activePlusCodeFix ? activePlusCodeFix.shortCode : 'None'}</span> {activePlusCodeFix?.locality ? '(' + activePlusCodeFix.locality.split(',')[0] + ')' : ''}
-            </div>
-          </div>
+        <details open={!!activePlusCodeFix} className="bg-slate-950 rounded-xl border border-slate-800">
+          <summary className="cursor-pointer select-none px-3.5 py-3 flex items-center gap-2 text-sm font-semibold text-slate-200">
+            <MapPin className="w-4 h-4 text-cyan-400" aria-hidden="true" />
+            <span>Pin an exact spot with a Plus Code</span>
+            {activePlusCodeFix && <span className="ml-auto text-xs font-mono text-cyan-200">{activePlusCodeFix.shortCode}</span>}
+          </summary>
+          <div className="px-3.5 pb-3.5 space-y-2.5">
 
           <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
             <input
@@ -491,11 +481,11 @@ export const PhoneLookupView: React.FC<PhoneLookupViewProps> = ({
               value={plusCodeInput}
               onChange={(e) => setPlusCodeInput(e.target.value)}
               placeholder="Enter Plus Code (e.g. XXXX+XX City or a full global code)"
-              className="flex-1 px-3 py-1.5 bg-slate-900 border border-slate-800 rounded-lg text-xs text-slate-200 font-mono focus:outline-none focus:border-purple-500"
+              className="flex-1 px-3 py-1.5 bg-slate-900 border border-slate-800 rounded-lg text-xs text-slate-200 font-mono focus:outline-none focus:border-cyan-500"
             />
             <button
               onClick={() => handleApplyPlusCode()}
-              className="px-3.5 py-1.5 bg-purple-600 hover:bg-purple-500 text-white font-bold text-xs rounded-lg transition-colors whitespace-nowrap shadow-sm"
+              className="px-3.5 py-2 bg-slate-700 hover:bg-slate-600 text-slate-100 font-semibold text-xs rounded-lg transition-colors whitespace-nowrap"
             >
               Verify & Pin Code
             </button>
@@ -506,7 +496,7 @@ export const PhoneLookupView: React.FC<PhoneLookupViewProps> = ({
                 setIsPlusCodeActive(false);
                 setPlusCodeError(null);
               }}
-              className="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs rounded-lg transition-colors whitespace-nowrap border border-slate-700"
+              className="px-3 py-2 bg-slate-900 hover:bg-slate-800 text-slate-300 text-xs rounded-lg transition-colors whitespace-nowrap border border-slate-700"
             >
               Clear
             </button>
@@ -522,20 +512,21 @@ export const PhoneLookupView: React.FC<PhoneLookupViewProps> = ({
           {activePlusCodeFix && isPlusCodeActive && (
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-1 text-[11px] font-mono border-t border-slate-800/80">
               <div>
-                <span className="text-slate-500 block font-sans text-[10px]">Full Global Plus Code:</span>
+                <span className="text-slate-400 block font-sans text-[10px]">Full Global Plus Code:</span>
                 <span className="text-cyan-300 font-bold">{activePlusCodeFix.fullCode}</span>
               </div>
               <div>
-                <span className="text-slate-500 block font-sans text-[10px]">Exact Coordinates:</span>
+                <span className="text-slate-400 block font-sans text-[10px]">Exact Coordinates:</span>
                 <span className="text-emerald-400 font-bold">{activePlusCodeFix.lat.toFixed(5)}, {activePlusCodeFix.lng.toFixed(5)}</span>
               </div>
               <div>
-                <span className="text-slate-500 block font-sans text-[10px]">Locality:</span>
+                <span className="text-slate-400 block font-sans text-[10px]">Locality:</span>
                 <span className="text-slate-200 font-sans truncate block">{activePlusCodeFix.locality}</span>
               </div>
             </div>
           )}
-        </div>
+          </div>
+        </details>
 
         {/* Survey Dump Link Badge */}
         {result.matchingSurveyCellsCount && !liveGpsFix && (
