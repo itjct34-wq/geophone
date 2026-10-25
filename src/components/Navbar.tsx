@@ -1,6 +1,7 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { Radio, Lock, LogOut } from 'lucide-react';
 import { useAuth } from '../auth/AuthContext';
+import { adminListCustomers } from '../services/accessService';
 
 export type TabId =
   | 'lookup'
@@ -29,6 +30,29 @@ interface TabDef {
 export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab }) => {
   const { user, isAdmin, hasPaid, signOut } = useAuth();
 
+  // Admin: how many customers are waiting, and whether any say they have paid
+  const [waiting, setWaiting] = useState({ requests: 0, paid: 0 });
+  useEffect(() => {
+    if (!isAdmin) return;
+    let cancelled = false;
+    const check = () =>
+      adminListCustomers()
+        .then((rows) => {
+          if (cancelled) return;
+          setWaiting({
+            requests: rows.filter((r) => r.requested_at).length,
+            paid: rows.filter((r) => r.paid_claimed_at).length,
+          });
+        })
+        .catch(() => undefined);
+    check();
+    const id = setInterval(check, 60000);
+    return () => {
+      cancelled = true;
+      clearInterval(id);
+    };
+  }, [isAdmin, activeTab]);
+
   const tabs: TabDef[] = [
     { id: 'lookup', label: 'Single Lookup' },
     { id: 'live_gps', label: 'Live GPS & Towers', paid: true },
@@ -44,6 +68,16 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab }) => {
       {t.label}
       {t.paid && !hasPaid && (
         <Lock className="w-3 h-3 ml-1.5 inline-block align-[-1px] text-slate-400" aria-label="Paid feature" />
+      )}
+      {t.id === 'admin' && waiting.requests > 0 && (
+        <span
+          className={`ml-2 inline-flex items-center justify-center min-w-5 h-5 px-1.5 rounded-full text-xs font-bold text-slate-950 ${
+            waiting.paid > 0 ? 'bg-emerald-400' : 'bg-amber-300'
+          }`}
+          aria-label={`${waiting.requests} waiting${waiting.paid > 0 ? `, ${waiting.paid} say they have paid` : ''}`}
+        >
+          {waiting.requests}
+        </span>
       )}
     </>
   );

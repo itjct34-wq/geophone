@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Loader2, Search } from 'lucide-react';
-import { adminListCustomers, adminSetAccess, type CustomerRow } from '../services/accessService';
+import { adminListCustomers, adminSetAccess, adminSetPaymentLink, type CustomerRow } from '../services/accessService';
 import { timeAgo } from '../services/lastLocationService';
 
 function accessLabel(c: CustomerRow, now = Date.now()): { text: string; tone: string } {
@@ -24,8 +24,13 @@ const CustomerCard: React.FC<{
   c: CustomerRow;
   busy: boolean;
   onChange: (c: CustomerRow, plan: 'free' | 'paid', days: number, disabled: boolean) => void;
-}> = ({ c, busy, onChange }) => {
+  onSaveLink: (c: CustomerRow, link: string, price: string) => Promise<void>;
+}> = ({ c, busy, onChange, onSaveLink }) => {
   const [days, setDays] = useState(30);
+  const [link, setLink] = useState(c.payment_link ?? '');
+  const [price, setPrice] = useState(c.price_note ?? '');
+  const [savingLink, setSavingLink] = useState(false);
+  const linkLooksValid = /^https:\/\/\S+$/i.test(link.trim());
   const label = accessLabel(c);
   const isPaidNow = c.plan === 'paid' && !!c.paid_until && new Date(c.paid_until).getTime() > Date.now();
 
@@ -47,9 +52,52 @@ const CustomerCard: React.FC<{
       </p>
 
       {c.requested_at && (
-        <div className="p-3 rounded-lg bg-amber-950/30 border border-amber-800/50 text-sm text-amber-100 space-y-0.5">
-          <p className="font-medium">Asked for access {timeAgo(c.requested_at)}</p>
-          {c.request_note && <p className="text-amber-100/90 break-words">“{c.request_note}”</p>}
+        <div className="p-3 rounded-lg bg-amber-950/30 border border-amber-800/50 text-sm text-amber-100 space-y-3">
+          <div className="space-y-0.5">
+            <p className="font-medium">Asked for access {timeAgo(c.requested_at)}</p>
+            {c.request_note && <p className="text-amber-100/90 break-words">“{c.request_note}”</p>}
+          </div>
+
+          {c.paid_claimed_at && (
+            <p role="status" className="p-2.5 rounded-lg bg-emerald-950/50 border border-emerald-700/60 text-emerald-100 font-medium">
+              Says they paid {timeAgo(c.paid_claimed_at)}. Check Payoneer, then press Activate.
+            </p>
+          )}
+
+          <div className="space-y-2">
+            <label className="block space-y-1">
+              <span className="text-xs text-amber-100/90">Payment link (must start with https://)</span>
+              <input
+                value={link}
+                onChange={(e) => setLink(e.target.value)}
+                inputMode="url"
+                placeholder="https://..."
+                className="w-full h-10 px-3 bg-slate-950 border border-slate-700 rounded-lg text-sm text-slate-100 placeholder:text-slate-400 focus:outline-none focus:border-cyan-500"
+              />
+            </label>
+            <label className="block space-y-1">
+              <span className="text-xs text-amber-100/90">Price they will see (optional)</span>
+              <input
+                value={price}
+                onChange={(e) => setPrice(e.target.value)}
+                maxLength={120}
+                placeholder="For example: $10 for 30 days"
+                className="w-full h-10 px-3 bg-slate-950 border border-slate-700 rounded-lg text-sm text-slate-100 placeholder:text-slate-400 focus:outline-none focus:border-cyan-500"
+              />
+            </label>
+            <button
+              onClick={async () => {
+                setSavingLink(true);
+                await onSaveLink(c, link, price);
+                setSavingLink(false);
+              }}
+              disabled={savingLink || !linkLooksValid}
+              className="h-10 px-4 text-sm font-semibold text-slate-950 bg-amber-300 hover:bg-amber-200 disabled:bg-slate-800 disabled:text-slate-500 rounded-lg transition-colors"
+            >
+              {c.payment_link ? 'Update link' : 'Send link to customer'}
+            </button>
+            {c.payment_link && <p className="text-xs text-amber-100/80">The customer can see this link on their Plan tab.</p>}
+          </div>
         </div>
       )}
 
@@ -135,6 +183,16 @@ export const AdminView: React.FC = () => {
     }
   };
 
+  const saveLink = async (c: CustomerRow, link: string, price: string) => {
+    try {
+      setError('');
+      await adminSetPaymentLink(c.user_id, link, price);
+      await load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not save the payment link.');
+    }
+  };
+
   const visible = useMemo(() => {
     const q = query.trim().toLowerCase();
     return (rows ?? []).filter((c) => !q || c.email.toLowerCase().includes(q));
@@ -185,7 +243,7 @@ export const AdminView: React.FC = () => {
       ) : (
         <ul className="space-y-3">
           {visible.map((c) => (
-            <CustomerCard key={c.user_id} c={c} busy={busyId === c.user_id} onChange={change} />
+            <CustomerCard key={c.user_id} c={c} busy={busyId === c.user_id} onChange={change} onSaveLink={saveLink} />
           ))}
         </ul>
       )}

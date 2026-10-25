@@ -68,8 +68,8 @@ export const PlanView: React.FC = () => {
           <div className="space-y-1">
             <h2 className="text-base font-bold text-slate-100">Get paid access</h2>
             <p className="text-sm text-slate-300 leading-relaxed">
-              Send a request and the admin will tell you how to pay. Once your payment is confirmed, the admin switches
-              your access on.
+              Send a request and the admin will put a payment link here. Pay it, tap I've paid, and the admin switches
+              your access on once the payment is confirmed.
             </p>
           </div>
           <AccessRequestPanel />
