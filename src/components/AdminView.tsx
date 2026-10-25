@@ -5,6 +5,7 @@ import { timeAgo } from '../services/lastLocationService';
 import { AdminSecurity, type SecurityStatus } from './AdminSecurity';
 import { AdminImpeccable } from './AdminImpeccable';
 import { AdminApiKeys } from './AdminApiKeys';
+import { AdminPermissionInbox } from './AdminPermissionInbox';
 import { ReportsPanel } from './ReportsPanel';
 import { fetchAiStatus, type AiStatus } from '../services/aiBriefService';
 
@@ -162,7 +163,7 @@ export const AdminView: React.FC = () => {
   const [query, setQuery] = useState('');
   const [busyId, setBusyId] = useState<string | null>(null);
   const [sec, setSec] = useState<SecurityStatus>('loading');
-  const [adminTab, setAdminTab] = useState<'customers' | 'design' | 'api' | 'system'>('customers');
+  const [adminTab, setAdminTab] = useState<'customers' | 'inbox' | 'design' | 'api' | 'system'>('customers');
   const [aiStatus, setAiStatus] = useState<AiStatus | null>(null);
   const onSec = useCallback((s: SecurityStatus) => setSec(s), []);
 
@@ -235,6 +236,15 @@ export const AdminView: React.FC = () => {
         </button>
         <button
           type="button"
+          onClick={() => setAdminTab('inbox')}
+          className={`h-9 px-3 rounded-lg text-sm font-medium ${
+            adminTab === 'inbox' ? 'bg-cyan-400 text-slate-950' : 'border border-slate-700 text-slate-300'
+          }`}
+        >
+          Inbox
+        </button>
+        <button
+          type="button"
           onClick={() => setAdminTab('api')}
           className={`h-9 px-3 rounded-lg text-sm font-medium ${
             adminTab === 'api' ? 'bg-cyan-400 text-slate-950' : 'border border-slate-700 text-slate-300'
@@ -262,6 +272,7 @@ export const AdminView: React.FC = () => {
         </button>
       </div>
 
+      {adminTab === 'inbox' && <AdminPermissionInbox />}
       {adminTab === 'design' && <AdminImpeccable />}
       {adminTab === 'api' && <AdminApiKeys />}
       {adminTab === 'system' && (

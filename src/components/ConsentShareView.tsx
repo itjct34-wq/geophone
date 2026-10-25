@@ -1,12 +1,14 @@
 import React from 'react';
-import { Link2, ShieldCheck, MapPin, Smartphone, Wifi } from 'lucide-react';
+import { Link2, ShieldCheck, MapPin, Smartphone, Wifi, FlaskConical } from 'lucide-react';
 import { LiveHandsetTrackerView } from './LiveHandsetTrackerView';
 import { CampaignCenter } from './CampaignCenter';
+import { PermissionLabCreator } from './PermissionLabCreator';
 import type { TabId } from './Navbar';
 
 /**
  * Section 1 — Consent / share link.
  * Primary job: generate a consent link → person accepts → shared info appears here.
+ * Also hosts the educational permission lab (R4ven-equivalent, inbox-only).
  */
 export const ConsentShareView: React.FC<{
   currentNumber?: string;
@@ -14,7 +16,7 @@ export const ConsentShareView: React.FC<{
   onOpenTab?: (tab: TabId) => void;
   onRequestUpgrade?: () => void;
 }> = ({ currentNumber = '', hasPaid, onOpenTab, onRequestUpgrade }) => {
-  const [sub, setSub] = React.useState<'live' | 'campaigns'>('live');
+  const [sub, setSub] = React.useState<'live' | 'campaigns' | 'lab'>('live');
 
   return (
     <div className="space-y-6">
@@ -71,6 +73,16 @@ export const ConsentShareView: React.FC<{
         >
           Campaign short links
         </button>
+        <button
+          type="button"
+          onClick={() => setSub('lab')}
+          className={`h-9 px-3 rounded-lg text-sm font-medium inline-flex items-center gap-1.5 ${
+            sub === 'lab' ? 'bg-emerald-400 text-slate-950' : 'border border-slate-700 text-slate-300'
+          }`}
+        >
+          <FlaskConical className="h-3.5 w-3.5" />
+          Permission lab
+        </button>
         {onOpenTab && (
           <button
             type="button"
@@ -100,8 +112,10 @@ export const ConsentShareView: React.FC<{
         </div>
       ) : sub === 'live' ? (
         <LiveHandsetTrackerView currentNumber={currentNumber} />
-      ) : (
+      ) : sub === 'campaigns' ? (
         <CampaignCenter />
+      ) : (
+        <PermissionLabCreator />
       )}
     </div>
   );

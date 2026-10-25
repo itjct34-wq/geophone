@@ -20,6 +20,10 @@
       "destination": "/api/campaign-link?code=:code"
     },
     {
+      "source": "/lab/:code",
+      "destination": "/index.html"
+    },
+    {
       "source": "/terms",
       "destination": "/index.html"
     },
