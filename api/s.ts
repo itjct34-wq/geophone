@@ -19,13 +19,15 @@ const escapeHtml = (s: string) =>
 
 const first = (v: string | string[] | undefined) => (Array.isArray(v) ? v[0] : v) ?? '';
 
-// Resolve the app's own origin to fetch index.html from. Never trust the
+// Resolve the app's own PUBLIC origin to fetch index.html from. Never trust the
 // request Host / X-Forwarded-Host header for this (it is attacker-controllable
-// and would turn this self-fetch into an SSRF). Prefer a deployment-provided
-// origin; only fall back to the request host, strictly validated, for local dev.
+// and would turn this self-fetch into an SSRF). Use a trusted, public origin —
+// and never VERCEL_URL: that is the deployment-specific URL, which can sit
+// behind Vercel Deployment Protection and returns the SSO login page instead of
+// the app. VERCEL_PROJECT_PRODUCTION_URL is the public production domain.
 function selfOrigin(req: Req): string {
   if (process.env.APP_URL) return process.env.APP_URL.replace(/\/+$/, '');
-  if (process.env.VERCEL_URL) return `https://${process.env.VERCEL_URL}`;
+  if (process.env.VERCEL_PROJECT_PRODUCTION_URL) return `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`;
   const host = first(req.headers['x-forwarded-host']) || first(req.headers.host);
   const proto = first(req.headers['x-forwarded-proto']) || 'https';
   // Dev fallback only: accept a plain DNS hostname, never an IP literal,
