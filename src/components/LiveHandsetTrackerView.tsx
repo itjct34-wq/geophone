@@ -82,7 +82,8 @@ interface LiveHandsetTrackerViewProps {
 
 export const LiveHandsetTrackerView: React.FC<LiveHandsetTrackerViewProps> = ({ currentNumber }) => {
   const { hasPaid } = useAuth();
-  const [activeTab, setActiveTab] = useState<'user_dump' | 'cells_table' | 'triangulation' | 'gps_link' | 'python_cells'>('user_dump');
+  // Default to consent share-link tab — this is the legitimate “live track” path.
+  const [activeTab, setActiveTab] = useState<'user_dump' | 'cells_table' | 'triangulation' | 'gps_link' | 'python_cells'>('gps_link');
   const [mapLayer, setMapLayer] = useState<MapTileLayer>('standard');
 
   // User-provided dump dataset state

@@ -9,6 +9,13 @@ export type TabId =
   | 'home'
   | 'signin'
   | 'lookup'
+  | 'phoneinfoga'
+  | 'caller_check'
+  | 'sherlock'
+  | 'holehe'
+  | 'shodan'
+  | 'osint_providers'
+  | 'spiderfoot'
   | 'live_gps'
   | 'batch'
   | 'ip'
@@ -76,9 +83,16 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab }) => {
 
   const moreTabs: TabDef[] = (
     [
+      { id: 'public_osint', label: t('navOsint') },
+      { id: 'spiderfoot', label: t('navSpiderFoot') },
+      { id: 'phoneinfoga', label: t('navPhoneInfoga') },
+      { id: 'caller_check', label: t('navCallerCheck') },
+      { id: 'sherlock', label: t('navSherlock') },
+      { id: 'holehe', label: t('navHolehe') },
+      { id: 'shodan', label: t('navShodan') },
+      { id: 'osint_providers', label: t('navProviders') },
       { id: 'batch', label: t('navBatch'), account: true },
       { id: 'history', label: t('navHistory'), account: true },
-      { id: 'public_osint', label: t('navOsint') },
       { id: 'resource_hub', label: t('navHub') },
       { id: 'investigations', label: t('navInvest'), paid: true },
       { id: 'campaigns', label: t('navCampaigns'), paid: true },
