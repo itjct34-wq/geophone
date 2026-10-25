@@ -39,6 +39,8 @@ import {
   OpenCageResult
 } from '../services/openCageService';
 import { LiveTrackingShareModal } from './LiveTrackingShareModal';
+import { LastKnownLocationCard } from './LastKnownLocationCard';
+import { getLastKnownLocation, timeAgo, type LastKnownLocation } from '../services/lastLocationService';
 import { resolvePlusCode, isPlusCode, ResolvedPlusCode } from '../services/plusCodeService';
 
 interface PhoneLookupViewProps {
@@ -47,6 +49,7 @@ interface PhoneLookupViewProps {
   result: PhoneLookupResult;
   onExportHtml: () => void;
   onSwitchTab?: (tab: 'lookup' | 'live_gps' | 'batch' | 'python' | 'guide') => void;
+  onOpenGodEye?: (target: { lat: number; lng: number; label: string }) => void;
 }
 
 interface PipelineStep {
@@ -63,7 +66,27 @@ export const PhoneLookupView: React.FC<PhoneLookupViewProps> = ({
   result,
   onExportHtml,
   onSwitchTab,
+  onOpenGodEye,
 }) => {
+  // Last position the person shared for this number through a consent link
+  const [lastKnown, setLastKnown] = useState<LastKnownLocation | null>(null);
+  useEffect(() => {
+    setLastKnown(null);
+    const e164 = result.e164;
+    if (!result.isValid || !e164) return;
+    let cancelled = false;
+    const load = () =>
+      getLastKnownLocation(e164)
+        .then((l) => !cancelled && setLastKnown(l))
+        .catch(() => undefined);
+    load();
+    const id = setInterval(load, 10000); // keeps a live share moving
+    return () => {
+      cancelled = true;
+      clearInterval(id);
+    };
+  }, [result.e164, result.isValid]);
+
   const [copiedField, setCopiedField] = useState<string | null>(null);
   const [openCageKey] = useState<string>(USER_DEFAULT_OPENCAGE_KEY);
   const [openCageData, setOpenCageData] = useState<OpenCageResult | null>(null);
@@ -199,6 +222,22 @@ export const PhoneLookupView: React.FC<PhoneLookupViewProps> = ({
       };
     }
 
+    if (lastKnown) {
+      const acc = Math.round(lastKnown.accuracy ?? 50);
+      return {
+        ...result,
+        regionOrCity: `Last shared location (${timeAgo(lastKnown.at)})`,
+        coordinates: {
+          lat: lastKnown.lat,
+          lng: lastKnown.lng,
+          displayName: `Last shared location: ${timeAgo(lastKnown.at)} (±${acc}m)`,
+          accuracyKm: Math.max(0.01, acc / 1000),
+          isApproximate: false,
+        },
+        confidence: 100,
+      };
+    }
+
     if (isPlusCodeActive && activePlusCodeFix) {
       return {
         ...result,
@@ -226,7 +265,7 @@ export const PhoneLookupView: React.FC<PhoneLookupViewProps> = ({
       },
       confidence: openCageData.source === 'opencage_api' ? 98 : result.confidence,
     };
-  }, [result, openCageData, cityOverride, liveGpsFix, isPlusCodeActive, activePlusCodeFix]);
+  }, [result, openCageData, cityOverride, liveGpsFix, lastKnown, isPlusCodeActive, activePlusCodeFix]);
 
   const handleCopy = (text: string, fieldName: string) => {
     navigator.clipboard.writeText(text);
@@ -276,6 +315,15 @@ export const PhoneLookupView: React.FC<PhoneLookupViewProps> = ({
         </div>
 
       </div>
+
+      {result.isValid && result.e164 && (
+        <LastKnownLocationCard
+          number={result.e164}
+          location={lastKnown}
+          onAskToShare={() => setIsShareModalOpen(true)}
+          onOpenGodEye={onOpenGodEye}
+        />
+      )}
 
       {/* CRITICAL REALITY FIX: Real Handset GPS vs Public Centroid */}
       <div className={`rounded-xl p-5 shadow-lg space-y-4 border transition-all ${

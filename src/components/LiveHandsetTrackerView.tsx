@@ -33,6 +33,15 @@ import {
   Square
 } from 'lucide-react';
 import { PAKISTAN_CELLS_DATABASE, CellTowerData } from '../data/cellsData';
+import { LiveTrackingShareModal } from './LiveTrackingShareModal';
+import {
+  deleteShare,
+  endShare,
+  listShares,
+  shareState,
+  shareUrl,
+  type ShareSession,
+} from '../services/shareService';
 import {
   RAW_USER_CELLS_STRING,
   parseRawCellsJson,
@@ -92,7 +101,12 @@ export const LiveHandsetTrackerView: React.FC<LiveHandsetTrackerViewProps> = ({ 
   const [triangulationIds, setTriangulationIds] = useState<string[]>([]);
   const [isResolving, setIsResolving] = useState(false);
   const [resolveMessage, setResolveMessage] = useState<string | null>(null);
-  const [copiedLink, setCopiedLink] = useState(false);
+  const [copiedShareId, setCopiedShareId] = useState<string | null>(null);
+  const [shares, setShares] = useState<ShareSession[]>([]);
+  const [shareError, setShareError] = useState('');
+  const [isShareModalOpen, setIsShareModalOpen] = useState(false);
+  const [focusShareId, setFocusShareId] = useState<string | null>(null);
+  const lastFitKeyRef = useRef('');
   const [copiedCode, setCopiedCode] = useState(false);
 
   // Map References
@@ -128,15 +142,46 @@ export const LiveHandsetTrackerView: React.FC<LiveHandsetTrackerViewProps> = ({ 
     return { zong, jazz, ufone, telenor, warid, lte, gsm, total: userCells.length };
   }, [userCells]);
 
-  // Tracking link
-  const trackingLinkUrl = typeof window !== 'undefined'
-    ? `${window.location.origin}/?track_target=${encodeURIComponent(currentNumber)}&mode=live_gps`
-    : 'https://app-url/?mode=live_gps';
+  // Shared locations: people who agreed to share their position through a link
+  const refreshShares = React.useCallback(async () => {
+    try {
+      setShares(await listShares());
+      setShareError('');
+    } catch (err) {
+      setShareError(err instanceof Error ? err.message : 'Could not load shared locations.');
+    }
+  }, []);
 
-  const handleCopyLink = () => {
-    navigator.clipboard.writeText(trackingLinkUrl);
-    setCopiedLink(true);
-    setTimeout(() => setCopiedLink(false), 2000);
+  useEffect(() => {
+    if (activeTab !== 'gps_link') return;
+    refreshShares();
+    const timer = setInterval(refreshShares, 4000);
+    return () => clearInterval(timer);
+  }, [activeTab, refreshShares]);
+
+  const handleCopyShare = (s: ShareSession) => {
+    navigator.clipboard.writeText(shareUrl(s.token));
+    setCopiedShareId(s.id);
+    setTimeout(() => setCopiedShareId(null), 2000);
+  };
+
+  const handleEndShare = async (s: ShareSession) => {
+    try {
+      await endShare(s.id);
+      refreshShares();
+    } catch (err) {
+      setShareError(err instanceof Error ? err.message : 'Could not end the link.');
+    }
+  };
+
+  const handleDeleteShare = async (s: ShareSession) => {
+    setShares((prev) => prev.filter((x) => x.id !== s.id));
+    try {
+      await deleteShare(s.id);
+    } catch (err) {
+      setShareError(err instanceof Error ? err.message : 'Could not delete the link.');
+      refreshShares();
+    }
   };
 
   const handleExportUserCellsCsv = () => {
@@ -615,8 +660,11 @@ print("[✓] Generated cells_survey_map.html with your cellular dump!")
       }
 
     } else if (activeTab === 'gps_link') {
+      const points: [number, number][] = [];
+
       if (deviceGps) {
         const here: [number, number] = [deviceGps.lat, deviceGps.lng];
+        points.push(here);
         if (gpsTrail.length > 1) {
           L.polyline(gpsTrail, { color: '#10b981', weight: 3, opacity: 0.7 }).addTo(group);
         }
@@ -636,12 +684,49 @@ print("[✓] Generated cells_survey_map.html with your cellular dump!")
           }),
         })
           .addTo(group)
-          .bindPopup(`<b>Live GPS</b><br/>${deviceGps.lat.toFixed(6)}, ${deviceGps.lng.toFixed(6)}<br/>±${deviceGps.accuracy} m`);
-        map.setView(here, Math.max(map.getZoom(), 16));
+          .bindPopup(`<b>This device</b><br/>${deviceGps.lat.toFixed(6)}, ${deviceGps.lng.toFixed(6)}<br/>±${deviceGps.accuracy} m`);
+      }
+
+      // People who agreed to share through a link
+      const located = shares.filter((s) => s.last_lat !== null && s.last_lng !== null);
+      located.forEach((s) => {
+        const state = shareState(s);
+        const color = state === 'live' ? '#f97316' : '#94a3b8';
+        const at: [number, number] = [s.last_lat as number, s.last_lng as number];
+        points.push(at);
+        if (s.last_accuracy !== null) {
+          L.circle(at, { radius: s.last_accuracy, color, fillColor: color, fillOpacity: 0.12, weight: 1 }).addTo(group);
+        }
+        L.marker(at, {
+          icon: L.divIcon({
+            className: 'share-pin',
+            html: `<div style="width:20px;height:20px;background:${color};border:3px solid #ffffff;border-radius:50%;box-shadow:0 0 12px ${color};"></div>`,
+            iconSize: [20, 20],
+            iconAnchor: [10, 10],
+          }),
+        })
+          .addTo(group)
+          .bindPopup(
+            `<b>${(s.label || 'Shared location').replace(/</g, '&lt;')}</b><br/>${at[0].toFixed(6)}, ${at[1].toFixed(6)}` +
+              `<br/>±${Math.round(s.last_accuracy ?? 0)} m<br/>${state === 'live' ? 'Live' : 'Last seen'} ${new Date(s.last_at as string).toLocaleTimeString()}`,
+          );
+      });
+
+      // Focus on a chosen share; otherwise frame everything once when the set of positions changes
+      const focus = focusShareId ? located.find((s) => s.id === focusShareId) : undefined;
+      if (focus) {
+        map.setView([focus.last_lat as number, focus.last_lng as number], 17, { animate: true });
+        setFocusShareId(null);
+      } else {
+        const key = `${deviceGps ? 'device' : ''}|${located.map((s) => s.id).join(',')}`;
+        if (points.length > 0 && key !== lastFitKeyRef.current) {
+          lastFitKeyRef.current = key;
+          map.fitBounds(L.latLngBounds(points), { padding: [60, 60], maxZoom: 16 });
+        }
       }
     }
     setTimeout(() => map.invalidateSize(), 150);
-  }, [activeTab, filteredUserCells, selectedUserCell, selectedTower, deviceGps, gpsTrail, triangulationBasis, triangulationEstimate, mapLayer]);
+  }, [activeTab, filteredUserCells, selectedUserCell, selectedTower, deviceGps, gpsTrail, triangulationBasis, triangulationEstimate, shares, focusShareId, mapLayer]);
 
   return (
     <div className="space-y-6">
@@ -1024,20 +1109,68 @@ print("[✓] Generated cells_survey_map.html with your cellular dump!")
                   <span>{isWatchingGps ? 'Stop live tracking' : 'Start live tracking'}</span>
                 </button>
                 <button
-                  onClick={handleCopyLink}
+                  onClick={() => setIsShareModalOpen(true)}
                   className="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg transition-colors flex items-center gap-1.5 whitespace-nowrap shrink-0"
                 >
-                  {copiedLink ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
-                  <span>{copiedLink ? 'Copied Link' : 'Copy GPS Link'}</span>
+                  <Share2 className="w-3.5 h-3.5" />
+                  <span>Ask someone to share</span>
                 </button>
               </div>
             </div>
 
-            <div className="flex items-center gap-2 p-2 bg-slate-900 border border-slate-800 rounded font-mono text-[11px] text-slate-300">
-              <span className="text-slate-500">Tracking Link:</span>
-              <span className="text-cyan-300 flex-1 truncate">{trackingLinkUrl}</span>
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="font-semibold text-slate-200">Shared locations</span>
+                <span className="text-[11px] text-slate-500">People who agreed through a link. Updates every few seconds.</span>
+              </div>
+              {shareError && <p role="alert" className="text-[11px] text-rose-400">{shareError}</p>}
+              {shares.length === 0 ? (
+                <p className="text-[11px] text-slate-500 p-3 bg-slate-900 border border-slate-800 rounded-lg">
+                  No links yet. Press Ask someone to share, send the link, and their position appears here once they agree.
+                </p>
+              ) : (
+                <ul className="space-y-1.5">
+                  {shares.map((s) => {
+                    const state = shareState(s);
+                    const badge: Record<string, string> = {
+                      live: 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30',
+                      stale: 'bg-amber-500/15 text-amber-300 border-amber-500/30',
+                      waiting: 'bg-slate-800 text-slate-300 border-slate-700',
+                      ended: 'bg-slate-800 text-slate-500 border-slate-700',
+                      expired: 'bg-slate-800 text-slate-500 border-slate-700',
+                    };
+                    const text: Record<string, string> = {
+                      live: 'Live',
+                      stale: s.last_at ? `Last seen ${new Date(s.last_at).toLocaleTimeString()}` : 'Last seen',
+                      waiting: 'Waiting for them',
+                      ended: 'Ended',
+                      expired: 'Expired',
+                    };
+                    const hasPos = s.last_lat !== null && s.last_lng !== null;
+                    return (
+                      <li key={s.id} className="flex flex-wrap items-center gap-2 p-2.5 bg-slate-900 border border-slate-800 rounded-lg">
+                        <span className={`px-2 py-0.5 rounded border text-[10px] font-semibold ${badge[state]}`}>{text[state]}</span>
+                        <span className="text-slate-200 font-medium">{s.label || 'Shared location'}</span>
+                        {hasPos && s.last_accuracy !== null && (
+                          <span className="text-[11px] text-slate-500 font-mono">±{Math.round(s.last_accuracy)} m</span>
+                        )}
+                        <span className="flex-1" />
+                        {hasPos && (
+                          <button onClick={() => setFocusShareId(s.id)} className="px-2 py-1 text-[11px] text-cyan-300 hover:text-cyan-200">Focus</button>
+                        )}
+                        <button onClick={() => handleCopyShare(s)} className="px-2 py-1 text-[11px] text-slate-300 hover:text-slate-100">
+                          {copiedShareId === s.id ? 'Copied' : 'Copy link'}
+                        </button>
+                        {state !== 'ended' && state !== 'expired' && (
+                          <button onClick={() => handleEndShare(s)} className="px-2 py-1 text-[11px] text-amber-300 hover:text-amber-200">End</button>
+                        )}
+                        <button onClick={() => handleDeleteShare(s)} aria-label="Delete this link" className="px-2 py-1 text-[11px] text-slate-500 hover:text-rose-400">Delete</button>
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
             </div>
-
             {gpsError && (
               <p role="alert" className="text-[11px] text-rose-400">{gpsError}</p>
             )}
@@ -1168,6 +1301,12 @@ print("[✓] Generated cells_survey_map.html with your cellular dump!")
           <div ref={mapContainerRef} className="w-full h-full" />
         </div>
       </div>
+      <LiveTrackingShareModal
+        isOpen={isShareModalOpen}
+        onClose={() => setIsShareModalOpen(false)}
+        targetNumber={currentNumber}
+        onCreated={refreshShares}
+      />
     </div>
   );
 };
