@@ -485,7 +485,7 @@ export const PhoneLookupView: React.FC<PhoneLookupViewProps> = ({
               <strong className="text-slate-200">
                 {cityOverride ?? (result.regionOrCity || result.countryName)}
               </strong>{' '}
-              (detected automatically from the number)
+              {cityOverride ? '(detected from the number)' : '(a mobile number does not reveal a city)'}
             </span>
           </div>
         )}      </div>

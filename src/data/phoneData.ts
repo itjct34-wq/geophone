@@ -1,4 +1,4 @@
-﻿import { PresetNumber } from '../types/phone';
+import { PresetNumber } from '../types/phone';
 
 export interface CountryGeoInfo {
   name: string;
@@ -48,47 +48,47 @@ export const REGIONAL_AREA_CODES: Record<string, { region: string; lat: number; 
   '1617': { region: 'Boston, MA', lat: 42.3601, lng: -71.0589, carrier: 'Verizon' },
 
   // UK Area / Mobile prefixes
-  '447911': { region: 'London & Southeast, UK', lat: 51.5074, lng: -0.1278, carrier: 'Vodafone UK' },
-  '447400': { region: 'United Kingdom (Mobile)', lat: 52.4862, lng: -1.8904, carrier: 'EE (Everything Everywhere)' },
-  '447700': { region: 'United Kingdom (Mobile)', lat: 53.4808, lng: -2.2426, carrier: 'O2 UK (Virgin Media)' },
-  '447800': { region: 'United Kingdom (Mobile)', lat: 51.5074, lng: -0.1278, carrier: 'Three UK' },
+  '447911': { region: 'United Kingdom (mobile number)', lat: 55.3781, lng: -3.436, carrier: 'Vodafone UK' },
+  '447400': { region: 'United Kingdom (mobile number)', lat: 55.3781, lng: -3.436, carrier: 'EE (Everything Everywhere)' },
+  '447700': { region: 'United Kingdom (mobile number)', lat: 55.3781, lng: -3.436, carrier: 'O2 UK (Virgin Media)' },
+  '447800': { region: 'United Kingdom (mobile number)', lat: 55.3781, lng: -3.436, carrier: 'Three UK' },
   '4420': { region: 'London (Greater London), UK', lat: 51.5074, lng: -0.1278, carrier: 'BT Fixed Line' },
 
   // Pakistan Mobile Networks (0300 Jazz, 0310/0312 Zong, 0321 Warid/Jazz, 0333 Ufone, 0345 Telenor)
-  '92310': { region: 'Islamabad / Rawalpindi, Pakistan', lat: 33.6844, lng: 73.0479, carrier: 'Zong 4G (CMPak)' },
-  '92300': { region: 'Punjab / Lahore, Pakistan', lat: 31.5204, lng: 74.3587, carrier: 'Jazz (Mobilink)' },
-  '92301': { region: 'Islamabad / Rawalpindi, Pakistan', lat: 33.6844, lng: 73.0479, carrier: 'Jazz (Mobilink)' },
-  '92312': { region: 'Karachi / Sindh, Pakistan', lat: 24.8607, lng: 67.0011, carrier: 'Zong 4G (CMPak)' },
-  '92313': { region: 'Pakistan Nationwide', lat: 30.3753, lng: 69.3451, carrier: 'Zong 4G (CMPak)' },
-  '92321': { region: 'Lahore, Pakistan', lat: 31.5204, lng: 74.3587, carrier: 'Jazz (formerly Warid)' },
-  '92333': { region: 'Islamabad / KPK, Pakistan', lat: 34.0151, lng: 71.5249, carrier: 'Ufone (PTCL)' },
-  '92345': { region: 'Peshawar / Northern, Pakistan', lat: 34.0151, lng: 71.5249, carrier: 'Telenor Pakistan' },
-  '92346': { region: 'Punjab, Pakistan', lat: 31.5204, lng: 74.3587, carrier: 'Telenor Pakistan' },
+  '92310': { region: 'Pakistan (nationwide mobile number)', lat: 30.3753, lng: 69.3451, carrier: 'Zong 4G (CMPak)' },
+  '92300': { region: 'Pakistan (nationwide mobile number)', lat: 30.3753, lng: 69.3451, carrier: 'Jazz (Mobilink)' },
+  '92301': { region: 'Pakistan (nationwide mobile number)', lat: 30.3753, lng: 69.3451, carrier: 'Jazz (Mobilink)' },
+  '92312': { region: 'Pakistan (nationwide mobile number)', lat: 30.3753, lng: 69.3451, carrier: 'Zong 4G (CMPak)' },
+  '92313': { region: 'Pakistan (nationwide mobile number)', lat: 30.3753, lng: 69.3451, carrier: 'Zong 4G (CMPak)' },
+  '92321': { region: 'Pakistan (nationwide mobile number)', lat: 30.3753, lng: 69.3451, carrier: 'Jazz (formerly Warid)' },
+  '92333': { region: 'Pakistan (nationwide mobile number)', lat: 30.3753, lng: 69.3451, carrier: 'Ufone (PTCL)' },
+  '92345': { region: 'Pakistan (nationwide mobile number)', lat: 30.3753, lng: 69.3451, carrier: 'Telenor Pakistan' },
+  '92346': { region: 'Pakistan (nationwide mobile number)', lat: 30.3753, lng: 69.3451, carrier: 'Telenor Pakistan' },
   '9251': { region: 'Islamabad Capital Territory, Pakistan', lat: 33.6844, lng: 73.0479, carrier: 'PTCL Fixed Line' },
   '9242': { region: 'Lahore, Punjab, Pakistan', lat: 31.5204, lng: 74.3587, carrier: 'PTCL Fixed Line' },
   '9221': { region: 'Karachi, Sindh, Pakistan', lat: 24.8607, lng: 67.0011, carrier: 'PTCL Fixed Line' },
 
   // India Mobile Networks
-  '9198': { region: 'Delhi NCR / Mumbai, India', lat: 28.6139, lng: 77.2090, carrier: 'Airtel' },
-  '9197': { region: 'Maharashtra / Karnataka, India', lat: 12.9716, lng: 77.5946, carrier: 'Reliance Jio' },
-  '9199': { region: 'India Nationwide', lat: 20.5937, lng: 78.9629, carrier: 'Vodafone Idea (Vi)' },
+  '9198': { region: 'India (mobile number)', lat: 20.5937, lng: 78.9629, carrier: 'Airtel' },
+  '9197': { region: 'India (mobile number)', lat: 20.5937, lng: 78.9629, carrier: 'Reliance Jio' },
+  '9199': { region: 'India (mobile number)', lat: 20.5937, lng: 78.9629, carrier: 'Vodafone Idea (Vi)' },
   '9180': { region: 'Bengaluru, Karnataka, India', lat: 12.9716, lng: 77.5946, carrier: 'BSNL / Airtel Landline' },
 
   // Germany
-  '49151': { region: 'Frankfurt / Hesse, Germany', lat: 50.1109, lng: 8.6821, carrier: 'Deutsche Telekom' },
-  '49172': { region: 'Munich / Bavaria, Germany', lat: 48.1351, lng: 11.5820, carrier: 'Vodafone Deutschland' },
-  '49176': { region: 'Berlin, Germany', lat: 52.5200, lng: 13.4050, carrier: 'Telefónica O2' },
+  '49151': { region: 'Germany (mobile number)', lat: 51.1657, lng: 10.4515, carrier: 'Deutsche Telekom' },
+  '49172': { region: 'Germany (mobile number)', lat: 51.1657, lng: 10.4515, carrier: 'Vodafone Deutschland' },
+  '49176': { region: 'Germany (mobile number)', lat: 51.1657, lng: 10.4515, carrier: 'Telefónica O2' },
 
   // France
-  '336': { region: 'Paris / Île-de-France, France', lat: 48.8566, lng: 2.3522, carrier: 'Orange / SFR / Free Mobile' },
-  '337': { region: 'Lyon / Auvergne-Rhône-Alpes, France', lat: 45.7640, lng: 4.8357, carrier: 'Bouygues Telecom' },
+  '336': { region: 'France (mobile number)', lat: 46.2276, lng: 2.2137, carrier: 'Orange / SFR / Free Mobile' },
+  '337': { region: 'France (mobile number)', lat: 46.2276, lng: 2.2137, carrier: 'Bouygues Telecom' },
 
   // UAE
-  '97150': { region: 'Dubai, United Arab Emirates', lat: 25.2048, lng: 55.2708, carrier: 'e& (Etisalat)' },
-  '97155': { region: 'Abu Dhabi, United Arab Emirates', lat: 24.4539, lng: 54.3773, carrier: 'du Telecom' },
+  '97150': { region: 'United Arab Emirates (mobile number)', lat: 23.4241, lng: 53.8478, carrier: 'e& (Etisalat)' },
+  '97155': { region: 'United Arab Emirates (mobile number)', lat: 23.4241, lng: 53.8478, carrier: 'du Telecom' },
 
   // Australia
-  '614': { region: 'Sydney / NSW, Australia', lat: -33.8688, lng: 151.2093, carrier: 'Telstra / Optus' },
+  '614': { region: 'Australia (mobile number)', lat: -25.2744, lng: 133.7751, carrier: 'Telstra / Optus' },
 };
 
 export const PRESET_NUMBERS: PresetNumber[] = [];

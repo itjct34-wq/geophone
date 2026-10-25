@@ -1,6 +1,9 @@
 import parsePhoneNumberFromString, { CountryCode, PhoneNumber } from 'libphonenumber-js';
 import { COUNTRY_GEO_DATA, REGIONAL_AREA_CODES } from '../data/phoneData';
 import { PhoneLookupResult } from '../types/phone';
+import { RAW_USER_CELLS_STRING, parseRawCellsJson } from '../data/userCellsImporter';
+
+const USER_CELLS = parseRawCellsJson(RAW_USER_CELLS_STRING);
 
 function flexibleParse(rawInput: string, defaultCountry: CountryCode = 'PK'): PhoneNumber | undefined {
   const clean = rawInput.trim().replace(/[\s\-\(\)\.]/g, '');
@@ -107,99 +110,26 @@ export function parsePhoneNumber(rawInput: string, defaultCountry: CountryCode =
       if (opPrefix === '30') {
         resolvedCarrier = 'Jazz (PMCL Mobilink 4G)';
         operatorMnc = 1;
-        matchingSurveyCellsCount = 32;
       } else if (opPrefix === '31') {
         resolvedCarrier = 'Zong 4G (CMPak)';
         operatorMnc = 4;
-        matchingSurveyCellsCount = 24;
       } else if (opPrefix === '32') {
         resolvedCarrier = 'Jazz (formerly Warid 4G)';
         operatorMnc = 11;
-        matchingSurveyCellsCount = 20;
       } else if (opPrefix === '33') {
         resolvedCarrier = 'Ufone 4G (PTML)';
         operatorMnc = 3;
-        matchingSurveyCellsCount = 18;
       } else if (opPrefix === '34') {
         resolvedCarrier = 'Telenor Pakistan 4G';
         operatorMnc = 6;
-        matchingSurveyCellsCount = 2;
       }
 
-      // PTA Regional Mobile Switching Centre (MSC/HLR) Sub-Allocation
-      if (regDigit === '5') {
-        resolvedRegion = 'Islamabad / Rawalpindi (NTR-1 Telecom Region)';
-        subAllocation = 'PTA Northern Telecom Region (NTR-1: Islamabad / Rawalpindi Twin Cities)';
-        customCoords = {
-          lat: 33.6844,
-          lng: 73.0479,
-          displayName: `${resolvedCarrier} - Islamabad / Rawalpindi Exchange Zone (±15km)`,
-          accuracyKm: 15,
-          isApproximate: false,
-        };
-      } else if (regDigit === '4' || regDigit === '8') {
-        resolvedRegion = 'Lahore / Central Punjab (CTR Telecom Region)';
-        subAllocation = 'PTA Central Telecom Region (CTR: Lahore Metropolitan & Gujranwala)';
-        customCoords = {
-          lat: 31.5204,
-          lng: 74.3587,
-          displayName: `${resolvedCarrier} - Lahore Regional Exchange Zone (±15km)`,
-          accuracyKm: 15,
-          isApproximate: false,
-        };
-      } else if (regDigit === '2' || regDigit === '3') {
-        resolvedRegion = 'Karachi / Southern Sindh (STR-1 Telecom Region)';
-        subAllocation = 'PTA Southern Telecom Region (STR-1: Karachi Greater Metropolitan Area)';
-        customCoords = {
-          lat: 24.8607,
-          lng: 67.0011,
-          displayName: `${resolvedCarrier} - Karachi Regional Exchange Zone (±20km)`,
-          accuracyKm: 20,
-          isApproximate: false,
-        };
-      } else if (regDigit === '9') {
-        resolvedRegion = 'Peshawar / KPK (NTR-3 Telecom Region)';
-        subAllocation = 'PTA North-West Telecom Region (NTR-3: Peshawar & Malakand)';
-        customCoords = {
-          lat: 34.0151,
-          lng: 71.5249,
-          displayName: `${resolvedCarrier} - Peshawar Regional Exchange Zone (±15km)`,
-          accuracyKm: 15,
-          isApproximate: false,
-        };
-      } else if (regDigit === '6') {
-        resolvedRegion = 'Multan / Southern Punjab (MTR Telecom Region)';
-        subAllocation = 'PTA Southern Punjab Telecom Region (MTR / FTR: Multan / Faisalabad)';
-        customCoords = {
-          lat: 30.1575,
-          lng: 71.5249,
-          displayName: `${resolvedCarrier} - Multan / Faisalabad Regional Exchange Zone (±20km)`,
-          accuracyKm: 20,
-          isApproximate: false,
-        };
-      } else if (regDigit === '7') {
-        resolvedRegion = 'Quetta / Balochistan (WTR Telecom Region)';
-        subAllocation = 'PTA Western Telecom Region (WTR: Quetta & Northern Balochistan)';
-        customCoords = {
-          lat: 30.1798,
-          lng: 66.9750,
-          displayName: `${resolvedCarrier} - Quetta Regional Exchange Zone (±25km)`,
-          accuracyKm: 25,
-          isApproximate: false,
-        };
-      } else {
-        // Fallback default mobile region for carrier HQ
-        resolvedRegion = 'Islamabad / Rawalpindi (Capital Operations)';
-        subAllocation = 'Nationwide GSM Cellular Network (Primary Operations Center)';
-        customCoords = {
-          lat: 33.6844,
-          lng: 73.0479,
-          displayName: `${resolvedCarrier} - Islamabad Primary Network Core`,
-          accuracyKm: 30,
-          isApproximate: true,
-        };
-      }
-    } else {
+      // Mobile numbers are not allocated by city, so only the carrier (from the
+      // prefix, which number portability can change) and the country are known.
+      resolvedRegion = 'Pakistan (nationwide mobile number)';
+      if (operatorMnc !== undefined) {
+        matchingSurveyCellsCount = USER_CELLS.filter((c) => c.mnc === operatorMnc).length || undefined;
+      }    } else {
       // Fixed line / PSTN
       if (nat.startsWith('51')) {
         resolvedCarrier = 'PTCL (Pakistan Telecommunication Company)';
