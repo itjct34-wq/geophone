@@ -65,6 +65,110 @@ export function estimatePosition(towers: TowerPoint[]): PositionEstimate | null 
   return { lat, lng, radiusM: Math.round(Math.max(minRange / 2, medianDistance, 100)) };
 }
 
+export interface TowerInput extends TowerPoint {
+  id: string;
+}
+
+/** One physical mast. Several cells (sectors, carriers, 2G/4G layers) often share it. */
+export interface TowerSite {
+  lat: number;
+  lng: number;
+  /** Smallest coverage radius among the cells on this site, in meters. */
+  rangeM: number;
+  ids: string[];
+  /** True when the site is part of the main group the estimate is built from. */
+  included: boolean;
+}
+
+export interface TowerAnalysis {
+  estimate: PositionEstimate | null;
+  sites: TowerSite[];
+  cellsUsed: number;
+  sitesUsed: number;
+  sitesIgnored: number;
+}
+
+/** Towers whose coordinates agree to about 100 m are the same mast. */
+const SITE_PRECISION = 3;
+/** Sites farther than this from the centre of the main group are treated as outliers. */
+const GROUP_RADIUS_M = 6000;
+
+/**
+ * Estimates the area a scan was taken in from the towers it heard.
+ *
+ * Three things make a naive average wrong, and are handled here:
+ *  1. Cells on one mast share coordinates, so counting cells instead of sites lets a
+ *     single mast with many sectors dominate. Each mast counts once.
+ *  2. A scan hears towers from more than one area. The densest group of sites is found
+ *     (mean shift) and sites far from it are ignored, not averaged in.
+ *  3. Without signal strength a real range-based fix is not possible, so the answer is
+ *     an area (centre and radius), never a point.
+ * It needs at least three distinct sites in the main group.
+ */
+export function analyzeTowers(towers: TowerInput[]): TowerAnalysis {
+  const bySite = new Map<string, TowerInput[]>();
+  for (const t of towers) {
+    const key = `${t.lat.toFixed(SITE_PRECISION)},${t.lng.toFixed(SITE_PRECISION)}`;
+    const list = bySite.get(key);
+    if (list) list.push(t);
+    else bySite.set(key, [t]);
+  }
+
+  const sites: TowerSite[] = [...bySite.values()].map((members) => ({
+    lat: members.reduce((s, m) => s + m.lat, 0) / members.length,
+    lng: members.reduce((s, m) => s + m.lng, 0) / members.length,
+    rangeM: Math.min(...members.map((m) => m.rangeM)),
+    ids: members.map((m) => m.id),
+    included: false,
+  }));
+
+  if (sites.length === 0) return { estimate: null, sites, cellsUsed: 0, sitesUsed: 0, sitesIgnored: 0 };
+
+  const weight = (s: TowerSite) => Math.sqrt(s.ids.length) / (s.rangeM * s.rangeM);
+  const within = (cLat: number, cLng: number) =>
+    sites.filter((s) => haversineMeters(cLat, cLng, s.lat, s.lng) <= GROUP_RADIUS_M);
+
+  // Start from the site with the most neighbours, then shift to the weighted centre until stable
+  let centre = sites.reduce(
+    (best, s) => {
+      const n = within(s.lat, s.lng).length;
+      return n > best.n ? { lat: s.lat, lng: s.lng, n } : best;
+    },
+    { lat: sites[0].lat, lng: sites[0].lng, n: -1 },
+  );
+  let cLat = centre.lat;
+  let cLng = centre.lng;
+  for (let i = 0; i < 25; i++) {
+    const group = within(cLat, cLng);
+    if (group.length === 0) break;
+    const wSum = group.reduce((s, g) => s + weight(g), 0);
+    const nLat = group.reduce((s, g) => s + g.lat * weight(g), 0) / wSum;
+    const nLng = group.reduce((s, g) => s + g.lng * weight(g), 0) / wSum;
+    const moved = haversineMeters(cLat, cLng, nLat, nLng);
+    cLat = nLat;
+    cLng = nLng;
+    if (moved < 10) break;
+  }
+
+  const group = within(cLat, cLng);
+  group.forEach((s) => (s.included = true));
+  const cellsUsed = group.reduce((n, s) => n + s.ids.length, 0);
+
+  if (group.length < 3) {
+    return { estimate: null, sites, cellsUsed, sitesUsed: group.length, sitesIgnored: sites.length - group.length };
+  }
+
+  const distances = group.map((s) => haversineMeters(cLat, cLng, s.lat, s.lng)).sort((a, b) => a - b);
+  const medianDistance = distances[Math.floor(distances.length / 2)];
+  const minRange = Math.min(...group.map((s) => s.rangeM));
+  return {
+    estimate: { lat: cLat, lng: cLng, radiusM: Math.round(Math.max(minRange / 2, medianDistance, 100)) },
+    sites,
+    cellsUsed,
+    sitesUsed: group.length,
+    sitesIgnored: sites.length - group.length,
+  };
+}
 export interface CellLookupResult {
   lat: number;
   lng: number;

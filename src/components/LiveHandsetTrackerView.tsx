@@ -51,9 +51,10 @@ import { MapTileLayer } from '../types/phone';
 import {
   applyEstimates,
   defaultRangeMeters,
-  estimatePosition,
+  analyzeTowers,
   lookupCell,
   type PositionEstimate,
+  type TowerAnalysis,
 } from '../services/triangulation';
 import {
   applyManualTowers,
@@ -301,17 +302,19 @@ export const LiveHandsetTrackerView: React.FC<LiveHandsetTrackerViewProps> = ({ 
     return userCells.filter((c) => !c.isApproximate && (c.rangeM ?? 0) <= 2000);
   }, [isAutoTriangulation, triangulationCells, userCells]);
 
-  const triangulationEstimate: PositionEstimate | null = React.useMemo(() => {
-    if (triangulationBasis.length < 3) return null;
-    return estimatePosition(
-      triangulationBasis.map((c) => ({
-        lat: c.lat,
-        lng: c.lng,
-        rangeM: defaultRangeMeters(c.technology),
-      })),
-    );
-  }, [triangulationBasis]);
-
+  const triangulationAnalysis: TowerAnalysis = React.useMemo(
+    () =>
+      analyzeTowers(
+        triangulationBasis.map((c) => ({
+          id: c.id,
+          lat: c.lat,
+          lng: c.lng,
+          rangeM: defaultRangeMeters(c.technology),
+        })),
+      ),
+    [triangulationBasis],
+  );
+  const triangulationEstimate: PositionEstimate | null = triangulationAnalysis.estimate;
   // Replace area guesses with real tower positions (OpenCelliD, BeaconDB, Unwired Labs)
   const [resolveProgress, setResolveProgress] = useState<{ done: number; total: number } | null>(null);
 
@@ -650,23 +653,26 @@ print("[✓] Generated cells_survey_map.html with your cellular dump!")
       const colors = ['#06b6d4', '#10b981', '#f59e0b', '#ef4444', '#a855f7', '#38bdf8'];
       const pts: [number, number][] = [];
 
-      triangulationBasis.forEach((c, idx) => {
-        const color = colors[idx % colors.length];
-        const range = defaultRangeMeters(c.technology);
-        L.circle([c.lat, c.lng], {
-          radius: range,
+      // One marker per physical mast. Masts far from the main group are shown grey and ignored.
+      triangulationAnalysis.sites.forEach((site, idx) => {
+        const color = site.included ? colors[idx % colors.length] : '#64748b';
+        L.circle([site.lat, site.lng], {
+          radius: site.rangeM,
           color,
           fillColor: color,
-          fillOpacity: 0.08,
+          fillOpacity: site.included ? 0.08 : 0.03,
           weight: 1.5,
           dashArray: '4, 4',
         }).addTo(group);
-        L.circleMarker([c.lat, c.lng], { radius: 6, color: '#ffffff', weight: 2, fillColor: color, fillOpacity: 1 })
+        L.circleMarker([site.lat, site.lng], { radius: 6, color: '#ffffff', weight: 2, fillColor: color, fillOpacity: 1 })
           .addTo(group)
-          .bindPopup(`<b>${c.operatorName}</b><br/>CID ${c.cid} · LAC ${c.lac}<br/>${c.isApproximate ? 'Approximate position' : 'Resolved tower position'}`);
-        pts.push([c.lat, c.lng]);
+          .bindPopup(
+            `<b>Tower site</b><br/>${site.ids.length} cell${site.ids.length === 1 ? '' : 's'} on this mast<br/>${
+              site.included ? 'Used in the estimate' : 'Ignored: far from the main group of towers'
+            }`,
+          );
+        pts.push([site.lat, site.lng]);
       });
-
       if (triangulationEstimate) {
         L.circle([triangulationEstimate.lat, triangulationEstimate.lng], {
           radius: triangulationEstimate.radiusM,
@@ -759,7 +765,7 @@ print("[✓] Generated cells_survey_map.html with your cellular dump!")
       }
     }
     setTimeout(() => map.invalidateSize(), 150);
-  }, [activeTab, filteredUserCells, selectedUserCell, selectedTower, deviceGps, gpsTrail, triangulationBasis, triangulationEstimate, shares, focusShareId, mapLayer]);
+  }, [activeTab, filteredUserCells, selectedUserCell, selectedTower, deviceGps, gpsTrail, triangulationBasis, triangulationAnalysis, triangulationEstimate, shares, focusShareId, mapLayer]);
 
   return (
     <div className="space-y-6">
@@ -1136,10 +1142,18 @@ print("[✓] Generated cells_survey_map.html with your cellular dump!")
               <div className="p-3 bg-purple-950/30 border border-purple-800/40 rounded-lg text-purple-200 font-mono text-xs">
                 <span className="block mb-1 font-sans text-[11px] text-purple-300">
                   {isAutoTriangulation
-                    ? `Automatic: using ${triangulationBasis.length} towers with real positions`
-                    : `Using your ${triangulationBasis.length} selected towers`}
+                    ? `Automatic: ${triangulationAnalysis.cellsUsed} cells on ${triangulationAnalysis.sitesUsed} tower sites`
+                    : `Using your selection: ${triangulationAnalysis.cellsUsed} cells on ${triangulationAnalysis.sitesUsed} tower sites`}
                 </span>
-                Estimated position: {triangulationEstimate.lat.toFixed(5)}, {triangulationEstimate.lng.toFixed(5)} · ±{triangulationEstimate.radiusM} m
+                Estimated area: {triangulationEstimate.lat.toFixed(5)}, {triangulationEstimate.lng.toFixed(5)} · ±{triangulationEstimate.radiusM} m
+                {triangulationAnalysis.sitesIgnored > 0 && (
+                  <span className="block mt-1 font-sans text-[11px] text-slate-300">
+                    {triangulationAnalysis.sitesIgnored} other tower site{triangulationAnalysis.sitesIgnored === 1 ? '' : 's'} are more than 6 km from the main group and were left out (shown grey on the map).
+                  </span>
+                )}
+                <span className="block mt-1 font-sans text-[11px] text-slate-400">
+                  This is the area where the tower list was recorded, from where the handset could hear these towers. No signal strengths are available, so it cannot be narrower than that.
+                </span>
                 {triangulationBasis.some((c) => c.isApproximate) && (
                   <span className="block mt-1 font-sans text-[11px] text-amber-300">
                     {triangulationBasis.filter((c) => c.isApproximate).length} of {triangulationBasis.length} cells still use approximate area positions, so this result is only indicative. Select 3 or more resolved towers (marked 'real') for a trustworthy estimate.
@@ -1149,7 +1163,7 @@ print("[✓] Generated cells_survey_map.html with your cellular dump!")
             ) : (
               <p className="text-[11px] text-slate-500">
                 {isAutoTriangulation
-                  ? `Waiting for 3 towers with real positions (${triangulationBasis.length} so far). The estimate appears here automatically.`
+                  ? `Waiting for 3 different tower sites with real positions (${triangulationAnalysis.sitesUsed} in the main group so far). The estimate appears here automatically.`
                   : 'Select at least 3 cells to compute an estimate.'}
               </p>
             )}
