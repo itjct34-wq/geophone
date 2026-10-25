@@ -51,6 +51,33 @@ function devApiPlugin(env: Record<string, string>): Plugin {
     configureServer(server) {
       mount(server, '/api/cell', '/api/cell.ts', ['OPENCELLID_KEY', 'UNWIREDLABS_TOKEN']);
       mount(server, '/api/geocode', '/api/geocode.ts', ['OPENCAGE_KEY']);
+      mount(server, '/api/phone-scan', '/api/phone-scan.ts', [
+        'NUMVERIFY_API_KEY',
+        'ABSTRACTAPI_PHONE_KEY',
+      ]);
+      mount(server, '/api/caller-check', '/api/caller-check.ts', [
+        'NUMVERIFY_API_KEY',
+        'ABSTRACTAPI_PHONE_KEY',
+        'TWILIO_ACCOUNT_SID',
+        'TWILIO_AUTH_TOKEN',
+      ]);
+      mount(server, '/api/sherlock', '/api/sherlock.ts', []);
+      mount(server, '/api/holehe', '/api/holehe.ts', []);
+      mount(server, '/api/shodan', '/api/shodan.ts', ['SHODAN_API_KEY']);
+      mount(server, '/api/osint', '/api/osint.ts', [
+        'SUPABASE_URL',
+        'SUPABASE_SERVICE_ROLE_KEY',
+        'SHODAN_API_KEY',
+        'ABUSEIPDB_API_KEY',
+        'BREACHDIRECTORY_API_KEY',
+        'RAPIDAPI_KEY',
+        'HUNTER_API_KEY',
+        'VIRUSTOTAL_API_KEY',
+        'APIVOID_API_KEY',
+        'OTX_API_KEY',
+        'WIGLE_API_NAME',
+        'WIGLE_API_TOKEN',
+      ]);
     },
   };
 }

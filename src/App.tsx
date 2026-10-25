@@ -9,13 +9,20 @@ import { HistoryView } from './components/HistoryView';
 import { IpNetworkView } from './components/IpNetworkView';
 import { addHistory } from './services/dataService';
 import { PhoneLookupView } from './components/PhoneLookupView';
+import { PhoneInfogaScannerView } from './components/PhoneInfogaScannerView';
+import { CallerCheckView } from './components/CallerCheckView';
+import { SherlockHuntView } from './components/SherlockHuntView';
+import { HoleheCheckView } from './components/HoleheCheckView';
+import { ShodanLookupView } from './components/ShodanLookupView';
+import { OsintProvidersView } from './components/OsintProvidersView';
+import { SpiderFootScanView } from './components/SpiderFootScanView';
+import { OpenOsintHubView } from './components/OpenOsintHubView';
 import { LiveHandsetTrackerView } from './components/LiveHandsetTrackerView';
 import { BatchTrackerView } from './components/BatchTrackerView';
 import { PlanView } from './components/PlanView';
 import { AdminView } from './components/AdminView';
 import { LockedFeature } from './components/LockedFeature';
 import { InvestigationCenter } from './components/InvestigationCenter';
-import { PublicSourceOsintView } from './components/PublicSourceOsintView';
 import { PublicResourceHub } from './components/PublicResourceHub';
 import { CampaignCenter } from './components/CampaignCenter';
 import { TermsGate } from './components/TermsGate';
@@ -193,13 +200,42 @@ export default function App() {
           </div>
         )}
 
+        {activeTab === 'phoneinfoga' && (
+          <PhoneInfogaScannerView
+            initialNumber={inputNumber}
+            onUseNumber={(n) => setInputNumber(n)}
+          />
+        )}
+
+        {activeTab === 'caller_check' && (
+          <CallerCheckView
+            initialNumber={inputNumber}
+            onUseNumber={(n) => setInputNumber(n)}
+          />
+        )}
+
+        {activeTab === 'sherlock' && <SherlockHuntView />}
+
+        {activeTab === 'holehe' && <HoleheCheckView />}
+
+        {activeTab === 'shodan' && <ShodanLookupView />}
+
+        {activeTab === 'osint_providers' && <OsintProvidersView />}
+
+        {activeTab === 'spiderfoot' && (
+          <SpiderFootScanView
+            initialTarget={inputNumber}
+            onUsePhone={(n) => setInputNumber(n)}
+          />
+        )}
+
         {activeTab === 'live_gps' &&
           (hasPaid ? (
             <LiveHandsetTrackerView currentNumber={inputNumber} />
           ) : (
             <LockedFeature
-              title="Live GPS and towers are part of paid access"
-              description="Send a consent link to see where a person is when they agree to share, with live updates and their last known position. Also includes the cell tower map and triangulation via OpenCelliD / BeaconDB."
+              title="Consent-based location is part of paid access"
+              description="Send a consent link to see where a person is when they agree to share, with live updates and their last known position. Also includes the cell tower map and triangulation via OpenCelliD / BeaconDB. This is not covert handset stalking."
               onSignIn={openSignIn}
             />
           ))}
@@ -250,7 +286,13 @@ export default function App() {
             />
           ))}
 
-        {activeTab === 'public_osint' && <PublicSourceOsintView />}
+        {activeTab === 'public_osint' && (
+          <OpenOsintHubView
+            onOpenTab={setActiveTab}
+            phoneNumber={inputNumber}
+            onUsePhone={(n) => setInputNumber(n)}
+          />
+        )}
 
         {activeTab === 'resource_hub' && <PublicResourceHub />}
 
