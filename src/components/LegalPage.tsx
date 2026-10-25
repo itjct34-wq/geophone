@@ -2,9 +2,9 @@ import React from 'react';
 import { Radio, ArrowLeft } from 'lucide-react';
 import { CURRENT_TERMS_VERSION } from '../services/accessService';
 
-// The business name and contact shown on these pages. Replace the placeholders.
-export const LEGAL_OWNER = '[YOUR NAME]';
-export const LEGAL_CONTACT = '[YOUR CONTACT — email or WhatsApp]';
+// The business name and contact shown on these pages.
+export const LEGAL_OWNER = 'GeoPhone Intelligence';
+export const LEGAL_CONTACT = 'WhatsApp +92 331 8484115';
 
 const UPDATED = 'Last updated 25 October 2026';
 
