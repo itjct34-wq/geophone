@@ -18,8 +18,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data }) => {
-      const u = data.session?.user;
+    supabase.auth.getSession().then(async ({ data }) => {
+      let u = data.session?.user;
+      if (u) {
+        // A stored session can outlive its account (e.g. a deleted user); verify it with the server
+        const { error } = await supabase.auth.getUser();
+        if (error) {
+          await supabase.auth.signOut();
+          u = undefined;
+        }
+      }
       setUser(u ? { id: u.id, email: u.email ?? '' } : null);
       setReady(true);
     });
