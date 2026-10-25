@@ -7,6 +7,7 @@
  */
 
 import { cachedFetch } from './_lib/osintCache';
+import publicApiHandler from './_lib/publicApiHandler';
 
 interface Req {
   query: Record<string, string | string[] | undefined>;
@@ -262,6 +263,11 @@ async function runShodan(q: string, mode: string) {
 }
 
 export default async function handler(req: Req, res: Res) {
+  // Hobby plan: /api/public-api is rewritten here (catalog id proxy).
+  if (first(req.query.id) || first(req.query.kind) === 'public') {
+    return publicApiHandler(req, res);
+  }
+
   const provider = first(req.query.provider).trim().toLowerCase();
   const q = first(req.query.q).trim();
   const kind = first(req.query.kind).trim().toLowerCase() || 'ip';

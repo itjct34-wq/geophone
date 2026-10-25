@@ -37,7 +37,7 @@ export async function runCallerCheck(
 ): Promise<CallerCheckResponse> {
   try {
     const response = await fetchWithTimeout(
-      `/api/caller-check?number=${encodeURIComponent(e164)}`,
+      `/api/phone-scan?kind=caller&number=${encodeURIComponent(e164)}`,
       { headers: { Accept: 'application/json' }, signal },
       CALLER_CHECK_CLIENT_MS,
     );

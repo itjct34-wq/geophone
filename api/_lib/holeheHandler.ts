@@ -1,12 +1,12 @@
 /**
- * Holehe-style email â†’ registered-account checks (public endpoints only).
- * Results are returned as JSON for in-app rendering â€” no redirects to holehe.me.
+ * Holehe-style email ? registered-account checks (public endpoints only).
+ * Results are returned as JSON for in-app rendering — no redirects to holehe.me.
  * Pattern: https://github.com/megadose/holehe
  */
 
 import { createHash } from 'crypto';
-import { HOLEHE_ACTIVE_MODULES, type HoleheModuleDef } from '../src/data/holeheModules';
-import { mapPool } from './_lib/mapPool';
+import { HOLEHE_ACTIVE_MODULES, type HoleheModuleDef } from '../../src/data/holeheModules';
+import { mapPool } from './mapPool';
 
 interface Req {
   query: Record<string, string | string[] | undefined>;
@@ -199,7 +199,7 @@ export default async function handler(req: Req, res: Res) {
     return;
   }
 
-  // Bounded concurrency â€” unbounded Promise.all saturated sockets and froze scans.
+  // Bounded concurrency — unbounded Promise.all saturated sockets and froze scans.
   const results = await mapPool(HOLEHE_ACTIVE_MODULES, MODULE_CONCURRENCY, (m) => runModule(m, email));
   const found = results.filter((r) => r.exists === true).length;
   const notFound = results.filter((r) => r.exists === false).length;

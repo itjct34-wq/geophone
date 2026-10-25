@@ -1,16 +1,25 @@
 {
   "functions": {
     "api/sherlock.ts": { "maxDuration": 30 },
-    "api/holehe.ts": { "maxDuration": 25 },
-    "api/phone-scan.ts": { "maxDuration": 20 },
-    "api/caller-check.ts": { "maxDuration": 20 },
+    "api/phone-scan.ts": { "maxDuration": 25 },
     "api/osint.ts": { "maxDuration": 25 },
     "api/shodan.ts": { "maxDuration": 20 },
-    "api/public-api.ts": { "maxDuration": 20 },
     "api/ai-brief.ts": { "maxDuration": 30 },
     "api/v1/intel.ts": { "maxDuration": 30 }
   },
   "rewrites": [
+    {
+      "source": "/api/holehe",
+      "destination": "/api/sherlock?kind=holehe"
+    },
+    {
+      "source": "/api/caller-check",
+      "destination": "/api/phone-scan?kind=caller"
+    },
+    {
+      "source": "/api/public-api",
+      "destination": "/api/osint?kind=public"
+    },
     {
       "source": "/s/:code",
       "destination": "/api/s?code=:code"

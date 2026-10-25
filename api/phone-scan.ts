@@ -1,7 +1,10 @@
 /**
  * Server proxy for PhoneInfoga-class public phone APIs (Numverify, AbstractAPI,
  * OVH Telecom zones). Keys stay server-side. No Truecaller / private app traffic.
+ * Also hosts caller-check (Hobby plan function consolidation).
  */
+
+import callerCheckHandler from './_lib/callerCheckHandler';
 
 interface Req {
   query: Record<string, string | string[] | undefined>;
@@ -28,6 +31,11 @@ async function fetchJson(url: string): Promise<{ ok: boolean; status: number; bo
 }
 
 export default async function handler(req: Req, res: Res) {
+  // Hobby plan: /api/caller-check is rewritten here.
+  if (first(req.query.kind) === 'caller' || first(req.query.mode) === 'caller') {
+    return callerCheckHandler(req, res);
+  }
+
   const number = first(req.query.number).trim();
   if (!isE164(number)) {
     res.status(400).json({ error: 'Provide a valid E.164 "number" (e.g. +14155552671).' });

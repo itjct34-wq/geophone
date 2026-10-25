@@ -4,8 +4,8 @@
  * Catalog: src/data/publicApisCatalog.ts
  */
 
-import { PUBLIC_APIS_CATALOG } from '../src/data/publicApisCatalog';
-import { cachedFetch } from './_lib/osintCache';
+import { PUBLIC_APIS_CATALOG } from '../../src/data/publicApisCatalog';
+import { cachedFetch } from './osintCache';
 
 interface Req {
   query: Record<string, string | string[] | undefined>;

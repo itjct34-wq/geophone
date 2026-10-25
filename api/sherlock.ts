@@ -12,6 +12,7 @@ import {
   type SherlockSite,
 } from '../src/data/sherlockSites';
 import { mapPool } from './_lib/mapPool';
+import holeheHandler from './_lib/holeheHandler';
 
 interface Req {
   query: Record<string, string | string[] | undefined>;
@@ -132,6 +133,11 @@ async function checkSite(
 }
 
 export default async function handler(req: Req, res: Res) {
+  // Hobby plan: /api/holehe is rewritten here (email probe).
+  if (first(req.query.email) || first(req.query.kind) === 'holehe') {
+    return holeheHandler(req, res);
+  }
+
   const username = first(req.query.username).trim();
   if (!username || username.length > 60 || !/^[a-zA-Z0-9_.-]+$/.test(username)) {
     res.status(400).json({

@@ -54,16 +54,23 @@ function devApiPlugin(env: Record<string, string>): Plugin {
       mount(server, '/api/phone-scan', '/api/phone-scan.ts', [
         'NUMVERIFY_API_KEY',
         'ABSTRACTAPI_PHONE_KEY',
+        'TWILIO_ACCOUNT_SID',
+        'TWILIO_AUTH_TOKEN',
       ]);
-      mount(server, '/api/caller-check', '/api/caller-check.ts', [
+      // Consolidated into phone-scan / sherlock / osint (Hobby ≤12 functions).
+      mount(server, '/api/caller-check', '/api/phone-scan.ts', [
         'NUMVERIFY_API_KEY',
         'ABSTRACTAPI_PHONE_KEY',
         'TWILIO_ACCOUNT_SID',
         'TWILIO_AUTH_TOKEN',
       ]);
       mount(server, '/api/sherlock', '/api/sherlock.ts', []);
-      mount(server, '/api/holehe', '/api/holehe.ts', []);
+      mount(server, '/api/holehe', '/api/sherlock.ts', []);
       mount(server, '/api/shodan', '/api/shodan.ts', ['SHODAN_API_KEY']);
+      mount(server, '/api/public-api', '/api/osint.ts', [
+        'SUPABASE_URL',
+        'SUPABASE_SERVICE_ROLE_KEY',
+      ]);
       mount(server, '/api/osint', '/api/osint.ts', [
         'SUPABASE_URL',
         'SUPABASE_SERVICE_ROLE_KEY',
