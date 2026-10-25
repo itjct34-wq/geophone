@@ -28,8 +28,27 @@ export function shareState(s: ShareSession, now = Date.now()): ShareState {
   return now - new Date(s.last_at).getTime() <= 30_000 ? 'live' : 'stale';
 }
 
+/** Short link, for example https://geophone-alpha.vercel.app/s/k7Qm2xW9tRpB */
 export function shareUrl(token: string): string {
-  return `${window.location.origin}/?share=${token}`;
+  return `${window.location.origin}/s/${token}`;
+}
+
+// Letters and digits that cannot be confused when read aloud or retyped (no 0/O, 1/l/I)
+const TOKEN_ALPHABET = 'abcdefghjkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+
+/**
+ * A short random code for the link. 12 characters from a 55-letter alphabet is about
+ * 69 bits, far more than can be guessed within the link's 24 hours.
+ */
+export function generateShortToken(length = 12): string {
+  const bytes = crypto.getRandomValues(new Uint8Array(length * 2));
+  let out = '';
+  for (const b of bytes) {
+    if (b >= 255 - (255 % TOKEN_ALPHABET.length)) continue; // avoid modulo bias
+    out += TOKEN_ALPHABET[b % TOKEN_ALPHABET.length];
+    if (out.length === length) break;
+  }
+  return out.length === length ? out : generateShortToken(length);
 }
 
 // ---- Owner side (signed in) ----
@@ -37,7 +56,7 @@ export function shareUrl(token: string): string {
 export async function createShare(label: string, requestedBy: string, phoneE164?: string): Promise<ShareSession> {
   const { data, error } = await supabase
     .from('share_sessions')
-    .insert({ label, requested_by: requestedBy, phone_e164: phoneE164 ?? null })
+    .insert({ token: generateShortToken(), label, requested_by: requestedBy, phone_e164: phoneE164 ?? null })
     .select(COLUMNS)
     .single();
   if (error) throw new Error(error.message);

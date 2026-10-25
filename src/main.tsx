@@ -11,9 +11,10 @@ function AuthGate() {
   return user ? <App /> : <LoginPage />;
 }
 
-// A ?share=<token> link is opened by the person being asked to share their location.
-// It needs no account, so it bypasses the sign-in gate.
-const shareToken = new URLSearchParams(window.location.search).get('share');
+// A /s/<code> link (or the older ?share=<token> form) is opened by the person being asked
+// to share their location. It needs no account, so it bypasses the sign-in gate.
+const pathMatch = window.location.pathname.match(/^\/s\/([A-Za-z0-9]{6,80})\/?$/);
+const shareToken = pathMatch?.[1] ?? new URLSearchParams(window.location.search).get('share');
 
 createRoot(document.getElementById('root')!).render(
   shareToken ? (

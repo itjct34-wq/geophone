@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import QRCode from 'qrcode';
-import { Share2, X, Copy, Check, Smartphone, ExternalLink, MessageSquare, QrCode, ShieldCheck, Loader2 } from 'lucide-react';
+import { Share2, X, Copy, Check, Smartphone, ExternalLink, MessageSquare, QrCode, ShieldCheck, Loader2, Mail, Send } from 'lucide-react';
 import { useAuth } from '../auth/AuthContext';
 import { createShare, shareUrl, type ShareSession } from '../services/shareService';
 import { parsePhoneNumber } from '../services/phoneParser';
@@ -71,7 +71,13 @@ export const LiveTrackingShareModal: React.FC<LiveTrackingShareModalProps> = ({
   let digits = targetNumber.replace(/\D/g, '');
   if (digits.startsWith('03')) digits = '92' + digits.slice(1);
 
-  const message = `${requestedBy.trim() || 'I'} would like to see your location. Open this link, then tap "Share my location" if you agree: ${url}`;
+  const who = requestedBy.trim() || 'Someone';
+  const message = `Hi, it's ${who}. I'd like to see your location on GeoPhone. You choose what to share and can stop at any time: ${url}`;
+  const shortLabel = url.replace(/^https?:\/\//, '');
+  const telegramUrl = `https://t.me/share/url?url=${encodeURIComponent(url)}&text=${encodeURIComponent(`Hi, it's ${who}. I'd like to see your location on GeoPhone. You choose what to share and can stop at any time.`)}`;
+  const emailUrl = `mailto:?subject=${encodeURIComponent(`${who} is asking to see your location`)}&body=${encodeURIComponent(message)}`;
+  const canNativeShare = typeof navigator !== 'undefined' && typeof navigator.share === 'function';
+  const nativeShare = () => navigator.share({ title: `${who} is asking to see your location`, text: message, url }).catch(() => undefined);
   const whatsappUrl = `https://api.whatsapp.com/send?${digits ? `phone=${digits}&` : ''}text=${encodeURIComponent(message)}`;
   const smsUrl = `sms:${digits}?body=${encodeURIComponent(message)}`;
 
@@ -139,7 +145,22 @@ export const LiveTrackingShareModal: React.FC<LiveTrackingShareModalProps> = ({
             </div>
           ) : (
             <div className="space-y-4">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {/* What the person will receive */}
+              <div className="p-4 bg-slate-950 border border-slate-800 rounded-xl space-y-2">
+                <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">What they will receive</span>
+                <div className="max-w-sm ml-auto bg-emerald-900/40 border border-emerald-800/50 rounded-2xl rounded-tr-sm px-3.5 py-2.5 space-y-2">
+                  <p className="text-[13px] text-slate-100 leading-snug">
+                    Hi, it's {who}. I'd like to see your location on GeoPhone. You choose what to share and can stop at any time:
+                  </p>
+                  <div className="rounded-lg bg-slate-950/60 border border-slate-700/60 px-3 py-2">
+                    <p className="text-[12px] font-semibold text-slate-100">{who} is asking to see your location</p>
+                    <p className="text-[11px] text-slate-400">Open the link, see who is asking, and choose exactly what to share.</p>
+                    <p className="text-[11px] text-cyan-300 font-mono truncate">{shortLabel}</p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
                 <a
                   href={whatsappUrl}
                   target="_blank"
@@ -147,19 +168,45 @@ export const LiveTrackingShareModal: React.FC<LiveTrackingShareModalProps> = ({
                   className="flex items-center justify-center gap-2 px-4 py-3 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl transition-colors"
                 >
                   <MessageSquare className="w-4 h-4" />
-                  <span>Send via WhatsApp</span>
-                  <ExternalLink className="w-3.5 h-3.5" />
+                  <span>WhatsApp</span>
                 </a>
                 <a
                   href={smsUrl}
                   className="flex items-center justify-center gap-2 px-4 py-3 bg-cyan-600 hover:bg-cyan-500 text-white font-bold rounded-xl transition-colors"
                 >
                   <Smartphone className="w-4 h-4" />
-                  <span>Send via SMS</span>
-                  <ExternalLink className="w-3.5 h-3.5" />
+                  <span>SMS</span>
                 </a>
+                <a
+                  href={telegramUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center justify-center gap-2 px-4 py-3 bg-sky-600 hover:bg-sky-500 text-white font-bold rounded-xl transition-colors"
+                >
+                  <Send className="w-4 h-4" />
+                  <span>Telegram</span>
+                </a>
+                <a
+                  href={emailUrl}
+                  className="flex items-center justify-center gap-2 px-4 py-3 bg-slate-700 hover:bg-slate-600 text-white font-bold rounded-xl transition-colors"
+                >
+                  <Mail className="w-4 h-4" />
+                  <span>Email</span>
+                </a>
+                {canNativeShare && (
+                  <button
+                    onClick={nativeShare}
+                    className="col-span-2 flex items-center justify-center gap-2 px-4 py-3 bg-slate-800 hover:bg-slate-700 text-slate-100 font-bold rounded-xl transition-colors"
+                  >
+                    <Share2 className="w-4 h-4" />
+                    <span>Share with another app</span>
+                  </button>
+                )}
               </div>
-
+              <p className="text-[11px] text-slate-500 leading-relaxed">
+                All of these are free: they open your own app with the message ready, and you press send there. The
+                app cannot send texts by itself without a paid SMS service.
+              </p>
               <div>
                 <div className="flex items-center justify-between mb-1.5">
                   <span className="font-semibold text-slate-200">Link</span>
@@ -168,7 +215,7 @@ export const LiveTrackingShareModal: React.FC<LiveTrackingShareModalProps> = ({
                     <span>{copied ? 'Copied' : 'Copy'}</span>
                   </button>
                 </div>
-                <div className="p-2.5 bg-slate-950 rounded-lg border border-slate-800 font-mono text-[11px] text-slate-300 break-all">{url}</div>
+                <div className="p-2.5 bg-slate-950 rounded-lg border border-slate-800 font-mono text-[12px] text-cyan-300 break-all">{shortLabel}</div>
               </div>
 
               <div className="p-4 bg-slate-950 rounded-xl border border-slate-800 flex items-center gap-5">
