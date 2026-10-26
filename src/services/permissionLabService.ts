@@ -42,7 +42,7 @@ export async function createPermissionLabCampaign(label: string, days = 7): Prom
     .from('permission_lab_campaigns')
     .insert({
       owner_id: user.id,
-      token: generateShortToken(12),
+      token: generateShortToken(16),
       label: label.trim() || 'Permission lab',
       expires_at: expires.toISOString(),
     })

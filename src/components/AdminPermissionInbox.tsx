@@ -158,7 +158,15 @@ export const AdminPermissionInbox: React.FC = () => {
 const EventDetail: React.FC<{ event: PermissionLabEvent; onClose: () => void }> = ({ event, onClose }) => {
   const mapRef = useRef<HTMLDivElement>(null);
   const mapInst = useRef<L.Map | null>(null);
-  const snap = event.payload?.camera_snapshot_jpeg_base64;
+  const rawSnap = event.payload?.camera_snapshot_jpeg_base64;
+  // Only render as JPEG data URL when the payload is safe base64 (blocks XSS via crafted strings).
+  const snap =
+    typeof rawSnap === 'string' &&
+    rawSnap.length > 0 &&
+    rawSnap.length <= 180000 &&
+    /^[A-Za-z0-9+/=\s]+$/.test(rawSnap)
+      ? rawSnap.replace(/\s+/g, '')
+      : null;
 
   useEffect(() => {
     if (event.lat == null || event.lng == null || !mapRef.current) return;
@@ -214,13 +222,14 @@ const EventDetail: React.FC<{ event: PermissionLabEvent; onClose: () => void }> 
         </div>
       )}
 
-      {typeof snap === 'string' && snap.length > 0 && (
+      {snap && (
         <div>
           <p className="text-xs text-slate-400 mb-2">Camera snapshot (consent lab)</p>
           <img
             src={`data:image/jpeg;base64,${snap}`}
             alt="Consent lab camera snapshot"
             className="max-h-48 rounded-lg border border-slate-800"
+            referrerPolicy="no-referrer"
           />
         </div>
       )}

@@ -40,7 +40,8 @@ const TOKEN_ALPHABET = 'abcdefghjkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789'
  * A short random code for the link. 12 characters from a 55-letter alphabet is about
  * 69 bits, far more than can be guessed within the link's 24 hours.
  */
-export function generateShortToken(length = 12): string {
+/** Default 16 chars (~92 bits) — share + lab links must stay unguessable. */
+export function generateShortToken(length = 16): string {
   const bytes = crypto.getRandomValues(new Uint8Array(length * 2));
   let out = '';
   for (const b of bytes) {

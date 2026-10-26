@@ -8,9 +8,11 @@
 
 import { cachedFetch } from './_lib/osintCache';
 import publicApiHandler from './_lib/publicApiHandler';
+import { checkIpRateLimit, clientIpFromHeaders } from './_lib/ipRateLimit';
 
 interface Req {
   query: Record<string, string | string[] | undefined>;
+  headers?: Record<string, string | string[] | undefined>;
 }
 interface Res {
   setHeader: (name: string, value: string) => void;
@@ -263,6 +265,14 @@ async function runShodan(q: string, mode: string) {
 }
 
 export default async function handler(req: Req, res: Res) {
+  // Burst guard for unauthenticated OSINT / public-api proxies (per instance).
+  const ipGate = checkIpRateLimit(clientIpFromHeaders(req.headers), 60, 60_000);
+  if (!ipGate.ok) {
+    res.setHeader('Retry-After', String(ipGate.retryAfterSec));
+    res.status(429).json({ error: 'Too many requests. Slow down and retry.' });
+    return;
+  }
+
   // Hobby plan: /api/public-api is rewritten here (catalog id proxy).
   if (first(req.query.id) || first(req.query.kind) === 'public') {
     return publicApiHandler(req, res);

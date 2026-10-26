@@ -99,6 +99,53 @@ export async function consumeApiQuota(rawKey: string): Promise<
   }
 
   const digest = hashApiKey(rawKey);
+
+  // Prefer atomic RPC (closes concurrent TOCTOU bypass). Fall back if migration not applied yet.
+  const { data: rpcData, error: rpcError } = await sb.rpc('consume_api_quota', { p_key_hash: digest });
+  if (!rpcError && rpcData && typeof rpcData === 'object') {
+    const row = rpcData as {
+      ok?: boolean;
+      status?: number;
+      error?: string;
+      limit?: number;
+      remaining?: number;
+      reset?: string;
+      period?: string;
+      plan?: ApiPlan;
+      key_id?: string;
+    };
+    const period = row.period || currentPeriodUtc();
+    const resetIso = row.reset || periodResetIso();
+    const limit = row.limit || PLAN_LIMITS.free;
+    const plan = row.plan || 'free';
+    const key: ApiKeyRecord = {
+      id: row.key_id || '',
+      plan,
+      monthly_limit: limit,
+      disabled: false,
+      key_hash: digest,
+      key_prefix: rawKey.slice(0, 10),
+    };
+    const quota: QuotaResult = {
+      allowed: Boolean(row.ok),
+      limit,
+      remaining: row.remaining ?? 0,
+      resetIso,
+      period,
+      key,
+    };
+    if (!row.ok) {
+      return {
+        ok: false,
+        status: row.status || 401,
+        error: row.error || 'API key rejected.',
+        quota,
+      };
+    }
+    return { ok: true, quota };
+  }
+
+  // Legacy path (pre-migration): prefix lookup + non-atomic increment.
   const prefix = rawKey.slice(0, 10);
   const { data: rows, error } = await sb
     .from('api_keys')
