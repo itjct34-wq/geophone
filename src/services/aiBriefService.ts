@@ -13,6 +13,8 @@ export interface AiStatus {
   groqModel: string;
   ollamaModel: string;
   ollamaBase: string;
+  groqSource?: 'db' | 'env' | 'none';
+  groqKeyMasked?: string | null;
   ready: boolean;
   message: string;
 }

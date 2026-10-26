@@ -5,6 +5,7 @@ import { timeAgo } from '../services/lastLocationService';
 import { AdminSecurity, type SecurityStatus } from './AdminSecurity';
 import { AdminImpeccable } from './AdminImpeccable';
 import { AdminApiKeys } from './AdminApiKeys';
+import { AdminAiSetup } from './AdminAiSetup';
 import { AdminPermissionInbox } from './AdminPermissionInbox';
 import { ReportsPanel } from './ReportsPanel';
 import { fetchAiStatus, type AiStatus } from '../services/aiBriefService';
@@ -163,7 +164,9 @@ export const AdminView: React.FC = () => {
   const [query, setQuery] = useState('');
   const [busyId, setBusyId] = useState<string | null>(null);
   const [sec, setSec] = useState<SecurityStatus>('loading');
-  const [adminTab, setAdminTab] = useState<'customers' | 'inbox' | 'design' | 'api' | 'system'>('customers');
+  const [adminTab, setAdminTab] = useState<
+    'customers' | 'inbox' | 'design' | 'api' | 'ai' | 'system'
+  >('customers');
   const [aiStatus, setAiStatus] = useState<AiStatus | null>(null);
   const onSec = useCallback((s: SecurityStatus) => setSec(s), []);
 
@@ -254,6 +257,15 @@ export const AdminView: React.FC = () => {
         </button>
         <button
           type="button"
+          onClick={() => setAdminTab('ai')}
+          className={`h-9 px-3 rounded-lg text-sm font-medium ${
+            adminTab === 'ai' ? 'bg-cyan-400 text-slate-950' : 'border border-slate-700 text-slate-300'
+          }`}
+        >
+          AI setup
+        </button>
+        <button
+          type="button"
           onClick={() => setAdminTab('design')}
           className={`h-9 px-3 rounded-lg text-sm font-medium ${
             adminTab === 'design' ? 'bg-cyan-400 text-slate-950' : 'border border-slate-700 text-slate-300'
@@ -275,6 +287,7 @@ export const AdminView: React.FC = () => {
       {adminTab === 'inbox' && <AdminPermissionInbox />}
       {adminTab === 'design' && <AdminImpeccable />}
       {adminTab === 'api' && <AdminApiKeys />}
+      {adminTab === 'ai' && <AdminAiSetup />}
       {adminTab === 'system' && (
         <section className="space-y-3 rounded-xl border border-slate-800 bg-slate-900/50 p-5">
           <h2 className="text-lg font-bold text-slate-100">System health (no secrets)</h2>
@@ -297,6 +310,13 @@ export const AdminView: React.FC = () => {
             <li>Sections: Consent link · Search all resources</li>
             <li>Stripe: set VITE_STRIPE_PAYMENT_LINK / STRIPE_* when ready (see docs/MONETIZATION.md)</li>
           </ul>
+          <button
+            type="button"
+            onClick={() => setAdminTab('ai')}
+            className="mt-2 h-9 px-3 rounded-lg text-sm font-medium bg-cyan-400 text-slate-950 hover:bg-cyan-300"
+          >
+            Open AI setup →
+          </button>
         </section>
       )}
 

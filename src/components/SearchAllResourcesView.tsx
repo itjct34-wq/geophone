@@ -262,10 +262,9 @@ export const SearchAllResourcesView: React.FC<{
             </div>
             {!aiStatus?.ready && (
               <p className="text-xs text-slate-500 rounded-lg border border-slate-800 bg-slate-950/60 p-3">
-                Add <code className="text-cyan-300">GROQ_API_KEY</code> (free Groq cloud) or start{' '}
-                <code className="text-cyan-300">Ollama</code> at{' '}
-                <code className="text-slate-400">{aiStatus?.ollamaBase || 'http://localhost:11434'}</code>.
-                Keys stay server-side via <code className="text-slate-400">/api/ai-brief</code>.
+                Configure in <code className="text-cyan-300">Admin → AI setup</code> (Groq key / Ollama URL)
+                or set <code className="text-cyan-300">GROQ_API_KEY</code>. Keys stay server-side via{' '}
+                <code className="text-slate-400">/api/ai-brief</code>.
               </p>
             )}
             {aiError && (

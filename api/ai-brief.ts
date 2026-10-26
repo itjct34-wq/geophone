@@ -1,9 +1,11 @@
 /**
  * Optional free AI brief for OSINT scan results.
- * Prefers Groq (OpenAI-compatible) when GROQ_API_KEY is set;
- * falls back to Ollama at OLLAMA_BASE_URL when reachable.
+ * Prefers Groq (OpenAI-compatible) when a key is available from ai_settings DB or GROQ_API_KEY;
+ * falls back to Ollama at OLLAMA_BASE_URL / saved base URL when reachable.
  * Keys never leave the server.
  */
+
+import { resolveAiConfig, maskSecret, type AiRuntimeConfig } from './_lib/aiSettings';
 
 interface Req {
   method?: string;
@@ -59,10 +61,13 @@ function buildPrompt(body: BriefBody): string {
   ].join('\n');
 }
 
-async function callGroq(prompt: string): Promise<{ ok: true; text: string; provider: string; model: string } | { ok: false; error: string }> {
-  const key = process.env.GROQ_API_KEY || '';
+async function callGroq(
+  prompt: string,
+  cfg: AiRuntimeConfig,
+): Promise<{ ok: true; text: string; provider: string; model: string } | { ok: false; error: string }> {
+  const key = cfg.groqApiKey;
   if (!key) return { ok: false, error: 'GROQ_API_KEY not set' };
-  const model = process.env.GROQ_MODEL || 'llama-3.1-8b-instant';
+  const model = cfg.groqModel || 'llama-3.1-8b-instant';
   try {
     const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
       method: 'POST',
@@ -98,9 +103,12 @@ async function callGroq(prompt: string): Promise<{ ok: true; text: string; provi
   }
 }
 
-async function callOllama(prompt: string): Promise<{ ok: true; text: string; provider: string; model: string } | { ok: false; error: string }> {
-  const base = (process.env.OLLAMA_BASE_URL || 'http://localhost:11434').replace(/\/$/, '');
-  const model = process.env.OLLAMA_MODEL || 'llama3.2';
+async function callOllama(
+  prompt: string,
+  cfg: AiRuntimeConfig,
+): Promise<{ ok: true; text: string; provider: string; model: string } | { ok: false; error: string }> {
+  const base = cfg.ollamaBaseUrl || 'http://localhost:11434';
+  const model = cfg.ollamaModel || 'llama3.2';
   try {
     const response = await fetch(`${base}/api/chat`, {
       method: 'POST',
@@ -140,9 +148,11 @@ async function callOllama(prompt: string): Promise<{ ok: true; text: string; pro
 export default async function handler(req: Req, res: Res) {
   res.setHeader('Cache-Control', 'no-store');
 
+  const cfg = await resolveAiConfig();
+
   if ((req.method || 'GET').toUpperCase() === 'GET') {
-    const groq = Boolean(process.env.GROQ_API_KEY);
-    const ollamaBase = (process.env.OLLAMA_BASE_URL || 'http://localhost:11434').replace(/\/$/, '');
+    const groq = Boolean(cfg.groqApiKey);
+    const ollamaBase = cfg.ollamaBaseUrl;
     let ollama = false;
     try {
       const ping = await fetch(`${ollamaBase}/api/tags`, { signal: AbortSignal.timeout(2500) });
@@ -153,15 +163,19 @@ export default async function handler(req: Req, res: Res) {
     res.status(200).json({
       groq,
       ollama,
-      groqModel: process.env.GROQ_MODEL || 'llama-3.1-8b-instant',
-      ollamaModel: process.env.OLLAMA_MODEL || 'llama3.2',
+      groqModel: cfg.groqModel,
+      ollamaModel: cfg.ollamaModel,
       ollamaBase,
+      groqSource: cfg.groqSource,
+      groqKeyMasked: maskSecret(cfg.groqApiKey),
       ready: groq || ollama,
       message: groq
-        ? 'Groq is configured.'
+        ? cfg.groqSource === 'db'
+          ? 'Groq is configured (Admin → AI setup).'
+          : 'Groq is configured (env).'
         : ollama
           ? 'Ollama is reachable.'
-          : 'Add GROQ_API_KEY or run Ollama locally (OLLAMA_BASE_URL).',
+          : 'Add a Groq key in Admin → AI setup, or set GROQ_API_KEY / run Ollama.',
     });
     return;
   }
@@ -178,13 +192,13 @@ export default async function handler(req: Req, res: Res) {
   }
 
   const prompt = buildPrompt(body);
-  const groq = await callGroq(prompt);
+  const groq = await callGroq(prompt, cfg);
   if (groq.ok) {
     res.status(200).json({ brief: groq.text, provider: groq.provider, model: groq.model });
     return;
   }
 
-  const ollama = await callOllama(prompt);
+  const ollama = await callOllama(prompt, cfg);
   if (ollama.ok) {
     res.status(200).json({
       brief: ollama.text,
@@ -200,6 +214,6 @@ export default async function handler(req: Req, res: Res) {
     error: 'No AI backend available.',
     groq: groq.error,
     ollama: ollama.error,
-    hint: 'Set GROQ_API_KEY (free tier) or start Ollama at OLLAMA_BASE_URL.',
+    hint: 'Open Admin → AI setup to save a Groq key, or set GROQ_API_KEY / start Ollama.',
   });
 }

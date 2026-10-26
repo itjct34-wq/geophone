@@ -141,6 +141,25 @@ type DesignSettingsRow = {
   updated_by: string | null;
 };
 
+type AiSettingsRow = {
+  id: string;
+  groq_api_key: string;
+  groq_model: string;
+  ollama_base_url: string;
+  ollama_model: string;
+  updated_at: string;
+  updated_by: string | null;
+};
+
+export type AiSettingsPublic = {
+  groqConfigured: boolean;
+  groqKeyMasked: string | null;
+  groqModel: string;
+  ollamaBaseUrl: string;
+  ollamaModel: string;
+  updatedAt?: string;
+};
+
 type ApiKeysRow = {
   id: string;
   user_id: string | null;
@@ -269,6 +288,7 @@ export type Database = {
       link_reports: TableDef<LinkReportsRow>;
       blocked_numbers: TableDef<BlockedNumbersRow, { phone_e164: string; reason?: string; created_at?: string }>;
       design_settings: TableDef<DesignSettingsRow>;
+      ai_settings: TableDef<AiSettingsRow>;
       api_keys: TableDef<ApiKeysRow>;
       api_key_usage: TableDef<ApiKeyUsageRow>;
       permission_lab_campaigns: TableDef<
@@ -317,6 +337,17 @@ export type Database = {
           p_notes: string;
         };
         Returns: DesignSettingsRow;
+      };
+      admin_get_ai_settings: { Args: Record<string, never>; Returns: AiSettingsPublic };
+      admin_set_ai_settings: {
+        Args: {
+          p_groq_api_key?: string | null;
+          p_groq_model?: string | null;
+          p_ollama_base_url?: string | null;
+          p_ollama_model?: string | null;
+          p_clear_groq_key?: boolean;
+        };
+        Returns: AiSettingsPublic;
       };
       admin_list_api_keys: { Args: Record<string, never>; Returns: unknown };
       admin_create_api_key: {
