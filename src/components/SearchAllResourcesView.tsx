@@ -111,7 +111,7 @@ export const SearchAllResourcesView: React.FC<{
     // Yield so the spinner paints before heavy async work.
     await new Promise((r) => setTimeout(r, 0));
     try {
-      const next = await runSpiderFootScan(target.trim());
+      const next = await runSpiderFootScan(target.trim(), undefined, controller.signal);
       if (controller.signal.aborted) return;
       setReport(next);
       setPhase(`Done · ${next.modules.length} modules · ${next.events.length} events`);

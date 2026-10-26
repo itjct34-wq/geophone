@@ -1,7 +1,10 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { supabase } from '../lib/supabase';
+import { withTimeout } from '../lib/withTimeout';
 import { fetchProfile, hasPaidAccess, hasAcceptedTerms, type Profile } from '../services/accessService';
 import type { AuthUser } from './types';
+
+const AUTH_BOOT_MS = 12_000;
 
 interface AuthContextValue {
   user: AuthUser | null;
@@ -38,7 +41,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
     let p: Profile | null = null;
     try {
-      p = await fetchProfile(u.id);
+      p = await withTimeout(fetchProfile(u.id), AUTH_BOOT_MS, 'Profile');
     } catch {
       p = null; // treated as a free customer until the profile can be read
     }
@@ -55,26 +58,45 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, []);
 
   useEffect(() => {
-    supabase.auth.getSession().then(async ({ data }) => {
-      let u = data.session?.user;
-      if (u) {
-        // A stored session can outlive its account (e.g. a deleted user); verify it with the server
-        const { error } = await supabase.auth.getUser();
-        if (error) {
-          await supabase.auth.signOut();
-          u = undefined;
+    let cancelled = false;
+    const boot = async () => {
+      try {
+        const { data } = await withTimeout(supabase.auth.getSession(), AUTH_BOOT_MS, 'Auth session');
+        let u = data.session?.user;
+        if (u) {
+          // A stored session can outlive its account (e.g. a deleted user); verify it with the server
+          try {
+            const { error } = await withTimeout(supabase.auth.getUser(), AUTH_BOOT_MS, 'Auth user');
+            if (error) {
+              await supabase.auth.signOut();
+              u = undefined;
+            }
+          } catch {
+            // Timed out verifying — treat as signed out so the UI can paint.
+            u = undefined;
+          }
         }
+        if (!cancelled) await applyUser(u);
+      } catch {
+        if (!cancelled) {
+          setUser(null);
+          setProfile(null);
+        }
+      } finally {
+        if (!cancelled) setReady(true);
       }
-      await applyUser(u);
-      setReady(true);
-    });
+    };
+    void boot();
     const { data: sub } = supabase.auth.onAuthStateChange((event, session) => {
       // Run after the callback returns so no database call happens inside it
       if (event === 'SIGNED_IN' || event === 'SIGNED_OUT' || event === 'USER_UPDATED') {
         setTimeout(() => void applyUser(session?.user), 0);
       }
     });
-    return () => sub.subscription.unsubscribe();
+    return () => {
+      cancelled = true;
+      sub.subscription.unsubscribe();
+    };
   }, [applyUser]);
 
   const refreshProfile = useCallback(async () => {

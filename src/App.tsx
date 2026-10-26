@@ -5,41 +5,71 @@
 
 import React, { Suspense, lazy, useMemo, useState } from 'react';
 import { Navbar, type TabId } from './components/Navbar';
-import { HistoryView } from './components/HistoryView';
-import { IpNetworkView } from './components/IpNetworkView';
 import { addHistory } from './services/dataService';
-import { PhoneLookupView } from './components/PhoneLookupView';
-import { PhoneInfogaScannerView } from './components/PhoneInfogaScannerView';
-import { CallerCheckView } from './components/CallerCheckView';
-import { SherlockHuntView } from './components/SherlockHuntView';
-import { HoleheCheckView } from './components/HoleheCheckView';
-import { ShodanLookupView } from './components/ShodanLookupView';
-import { OsintProvidersView } from './components/OsintProvidersView';
-import { SpiderFootScanView } from './components/SpiderFootScanView';
-import { OpenOsintHubView } from './components/OpenOsintHubView';
-import { LiveHandsetTrackerView } from './components/LiveHandsetTrackerView';
-import { BatchTrackerView } from './components/BatchTrackerView';
-import { PlanView } from './components/PlanView';
-import { AdminView } from './components/AdminView';
 import { LockedFeature } from './components/LockedFeature';
-import { InvestigationCenter } from './components/InvestigationCenter';
-import { PublicResourceHub } from './components/PublicResourceHub';
-import { PublicApisHubView } from './components/PublicApisHubView';
-import { CampaignCenter } from './components/CampaignCenter';
-import { ConsentShareView } from './components/ConsentShareView';
-import { SearchAllResourcesView } from './components/SearchAllResourcesView';
 import { TermsGate } from './components/TermsGate';
 import { LandingPage } from './components/LandingPage';
 import { LoginPage } from './components/LoginPage';
 import { UsageMeter } from './components/UsageMeter';
 import { useAuth } from './auth/AuthContext';
 import { canUse, consumeUsage, usageLimitMessage } from './services/usageLimits';
-const GodEyeView = lazy(() => import('./components/GodEyeView').then((m) => ({ default: m.GodEyeView })));
 import { parsePhoneNumber } from './services/phoneParser';
 import { Info, ShieldCheck } from 'lucide-react';
 
+/** Lazy-load heavy / map / OSINT tabs so first paint and tab switches stay responsive. */
+const GodEyeView = lazy(() => import('./components/GodEyeView').then((m) => ({ default: m.GodEyeView })));
+const HistoryView = lazy(() => import('./components/HistoryView').then((m) => ({ default: m.HistoryView })));
+const IpNetworkView = lazy(() => import('./components/IpNetworkView').then((m) => ({ default: m.IpNetworkView })));
+const PhoneLookupView = lazy(() => import('./components/PhoneLookupView').then((m) => ({ default: m.PhoneLookupView })));
+const PhoneInfogaScannerView = lazy(() =>
+  import('./components/PhoneInfogaScannerView').then((m) => ({ default: m.PhoneInfogaScannerView })),
+);
+const CallerCheckView = lazy(() => import('./components/CallerCheckView').then((m) => ({ default: m.CallerCheckView })));
+const SherlockHuntView = lazy(() => import('./components/SherlockHuntView').then((m) => ({ default: m.SherlockHuntView })));
+const HoleheCheckView = lazy(() => import('./components/HoleheCheckView').then((m) => ({ default: m.HoleheCheckView })));
+const ShodanLookupView = lazy(() => import('./components/ShodanLookupView').then((m) => ({ default: m.ShodanLookupView })));
+const OsintProvidersView = lazy(() =>
+  import('./components/OsintProvidersView').then((m) => ({ default: m.OsintProvidersView })),
+);
+const SpiderFootScanView = lazy(() =>
+  import('./components/SpiderFootScanView').then((m) => ({ default: m.SpiderFootScanView })),
+);
+const OpenOsintHubView = lazy(() =>
+  import('./components/OpenOsintHubView').then((m) => ({ default: m.OpenOsintHubView })),
+);
+const LiveHandsetTrackerView = lazy(() =>
+  import('./components/LiveHandsetTrackerView').then((m) => ({ default: m.LiveHandsetTrackerView })),
+);
+const BatchTrackerView = lazy(() => import('./components/BatchTrackerView').then((m) => ({ default: m.BatchTrackerView })));
+const PlanView = lazy(() => import('./components/PlanView').then((m) => ({ default: m.PlanView })));
+const AdminView = lazy(() => import('./components/AdminView').then((m) => ({ default: m.AdminView })));
+const InvestigationCenter = lazy(() =>
+  import('./components/InvestigationCenter').then((m) => ({ default: m.InvestigationCenter })),
+);
+const PublicResourceHub = lazy(() =>
+  import('./components/PublicResourceHub').then((m) => ({ default: m.PublicResourceHub })),
+);
+const PublicApisHubView = lazy(() =>
+  import('./components/PublicApisHubView').then((m) => ({ default: m.PublicApisHubView })),
+);
+const CampaignCenter = lazy(() => import('./components/CampaignCenter').then((m) => ({ default: m.CampaignCenter })));
+const ConsentShareView = lazy(() =>
+  import('./components/ConsentShareView').then((m) => ({ default: m.ConsentShareView })),
+);
+const SearchAllResourcesView = lazy(() =>
+  import('./components/SearchAllResourcesView').then((m) => ({ default: m.SearchAllResourcesView })),
+);
+
 /** Tabs that require a signed-in account; a logged-out visitor is sent home instead. */
 const ACCOUNT_TABS: TabId[] = ['batch', 'history', 'plan', 'admin', 'consent'];
+
+function TabFallback() {
+  return (
+    <div role="status" className="rounded-xl border border-slate-800 bg-slate-900 p-6 text-sm text-slate-400">
+      Loading tool…
+    </div>
+  );
+}
 
 export default function App() {
   const { user, isAdmin, hasPaid } = useAuth();
@@ -91,7 +121,11 @@ export default function App() {
   const godEyeTarget = useMemo(
     () =>
       phoneResult.isValid
-        ? { lat: phoneResult.coordinates.lat, lng: phoneResult.coordinates.lng, label: phoneResult.coordinates.displayName || phoneResult.e164 || '' }
+        ? {
+            lat: phoneResult.coordinates.lat,
+            lng: phoneResult.coordinates.lng,
+            label: phoneResult.coordinates.displayName || phoneResult.e164 || '',
+          }
         : null,
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [phoneResult.e164, phoneResult.isValid],
@@ -171,167 +205,152 @@ export default function App() {
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6">
         <TermsGate />
 
-        {activeTab === 'consent' && (
-          <ConsentShareView
-            currentNumber={inputNumber}
-            hasPaid={hasPaid}
-            onOpenTab={setActiveTab}
-            onRequestUpgrade={() => setActiveTab(user ? 'plan' : 'signin')}
-          />
-        )}
+        <Suspense fallback={<TabFallback />}>
+          {activeTab === 'consent' && (
+            <ConsentShareView
+              currentNumber={inputNumber}
+              hasPaid={hasPaid}
+              onOpenTab={setActiveTab}
+              onRequestUpgrade={() => setActiveTab(user ? 'plan' : 'signin')}
+            />
+          )}
 
-        {activeTab === 'search' && (
-          <SearchAllResourcesView
-            initialTarget={inputNumber}
-            onUsePhone={(n) => setInputNumber(n)}
-            onOpenTab={setActiveTab}
-          />
-        )}
+          {activeTab === 'search' && (
+            <SearchAllResourcesView
+              initialTarget={inputNumber}
+              onUsePhone={(n) => setInputNumber(n)}
+              onOpenTab={setActiveTab}
+            />
+          )}
 
-        {activeTab === 'lookup' && (
-          <div className="space-y-4">
-            <UsageMeter feature="phone_lookup" hasPaid={hasPaid} refreshKey={usageTick} />
-            {lookupBlocked && !hasPaid && (
-              <div
-                role="status"
-                className="rounded-xl border border-amber-800/60 bg-amber-950/30 px-4 py-3 text-sm text-amber-100 space-y-2"
-              >
-                <p>{usageLimitMessage('phone_lookup')}</p>
-                <button
-                  type="button"
-                  onClick={() => setActiveTab(user ? 'plan' : 'signin')}
-                  className="h-9 px-3 text-xs font-semibold rounded-lg bg-cyan-400 text-slate-950 hover:bg-cyan-300"
+          {activeTab === 'lookup' && (
+            <div className="space-y-4">
+              <UsageMeter feature="phone_lookup" hasPaid={hasPaid} refreshKey={usageTick} />
+              {lookupBlocked && !hasPaid && (
+                <div
+                  role="status"
+                  className="rounded-xl border border-amber-800/60 bg-amber-950/30 px-4 py-3 text-sm text-amber-100 space-y-2"
                 >
-                  {user ? 'See paid plan' : 'Sign in to upgrade'}
-                </button>
-              </div>
-            )}
-            <PhoneLookupView
-              inputNumber={inputNumber}
-              setInputNumber={setInputNumber}
-              result={phoneResult}
-              enrichmentAllowed={hasPaid || !lookupBlocked}
-              onSwitchTab={setActiveTab}
+                  <p>{usageLimitMessage('phone_lookup')}</p>
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab(user ? 'plan' : 'signin')}
+                    className="h-9 px-3 text-xs font-semibold rounded-lg bg-cyan-400 text-slate-950 hover:bg-cyan-300"
+                  >
+                    {user ? 'See paid plan' : 'Sign in to upgrade'}
+                  </button>
+                </div>
+              )}
+              <PhoneLookupView
+                inputNumber={inputNumber}
+                setInputNumber={setInputNumber}
+                result={phoneResult}
+                enrichmentAllowed={hasPaid || !lookupBlocked}
+                onSwitchTab={setActiveTab}
+                onOpenGodEye={(target) => {
+                  setGlobeOverride(target);
+                  setActiveTab('god_eye');
+                }}
+              />
+            </div>
+          )}
+
+          {activeTab === 'phoneinfoga' && (
+            <PhoneInfogaScannerView initialNumber={inputNumber} onUseNumber={(n) => setInputNumber(n)} />
+          )}
+
+          {activeTab === 'caller_check' && (
+            <CallerCheckView initialNumber={inputNumber} onUseNumber={(n) => setInputNumber(n)} />
+          )}
+
+          {activeTab === 'sherlock' && <SherlockHuntView />}
+
+          {activeTab === 'holehe' && <HoleheCheckView />}
+
+          {activeTab === 'shodan' && <ShodanLookupView />}
+
+          {activeTab === 'osint_providers' && <OsintProvidersView />}
+
+          {activeTab === 'spiderfoot' && (
+            <SpiderFootScanView initialTarget={inputNumber} onUsePhone={(n) => setInputNumber(n)} />
+          )}
+
+          {activeTab === 'live_gps' &&
+            (hasPaid ? (
+              <LiveHandsetTrackerView currentNumber={inputNumber} />
+            ) : (
+              <LockedFeature
+                title="Consent-based location is part of paid access"
+                description="Send a consent link to see where a person is when they agree to share, with live updates and their last known position. Also includes the cell tower map and triangulation via OpenCelliD / BeaconDB. This is not covert handset stalking."
+                onSignIn={openSignIn}
+              />
+            ))}
+
+          {activeTab === 'batch' && <BatchTrackerView onSelectNumber={handleSelectBatchNumber} />}
+
+          {activeTab === 'ip' && (
+            <IpNetworkView
               onOpenGodEye={(target) => {
                 setGlobeOverride(target);
                 setActiveTab('god_eye');
               }}
+              onUsageChange={() => setUsageTick((n) => n + 1)}
+              usageTick={usageTick}
+              onRequestUpgrade={() => setActiveTab(user ? 'plan' : 'signin')}
             />
-          </div>
-        )}
+          )}
 
-        {activeTab === 'phoneinfoga' && (
-          <PhoneInfogaScannerView
-            initialNumber={inputNumber}
-            onUseNumber={(n) => setInputNumber(n)}
-          />
-        )}
-
-        {activeTab === 'caller_check' && (
-          <CallerCheckView
-            initialNumber={inputNumber}
-            onUseNumber={(n) => setInputNumber(n)}
-          />
-        )}
-
-        {activeTab === 'sherlock' && <SherlockHuntView />}
-
-        {activeTab === 'holehe' && <HoleheCheckView />}
-
-        {activeTab === 'shodan' && <ShodanLookupView />}
-
-        {activeTab === 'osint_providers' && <OsintProvidersView />}
-
-        {activeTab === 'spiderfoot' && (
-          <SpiderFootScanView
-            initialTarget={inputNumber}
-            onUsePhone={(n) => setInputNumber(n)}
-          />
-        )}
-
-        {activeTab === 'live_gps' &&
-          (hasPaid ? (
-            <LiveHandsetTrackerView currentNumber={inputNumber} />
-          ) : (
-            <LockedFeature
-              title="Consent-based location is part of paid access"
-              description="Send a consent link to see where a person is when they agree to share, with live updates and their last known position. Also includes the cell tower map and triangulation via OpenCelliD / BeaconDB. This is not covert handset stalking."
-              onSignIn={openSignIn}
-            />
-          ))}
-
-        {activeTab === 'batch' && <BatchTrackerView onSelectNumber={handleSelectBatchNumber} />}
-
-        {activeTab === 'ip' && (
-          <IpNetworkView
-            onOpenGodEye={(target) => {
-              setGlobeOverride(target);
-              setActiveTab('god_eye');
-            }}
-            onUsageChange={() => setUsageTick((n) => n + 1)}
-            usageTick={usageTick}
-            onRequestUpgrade={() => setActiveTab(user ? 'plan' : 'signin')}
-          />
-        )}
-
-        {activeTab === 'god_eye' &&
-          (hasPaid ? (
-            <Suspense
-              fallback={
-                <div role="status" className="rounded-xl border border-slate-800 bg-slate-900 p-6 text-sm text-slate-400">
-                  Loading globe…
-                </div>
-              }
-            >
+          {activeTab === 'god_eye' &&
+            (hasPaid ? (
               <GodEyeView target={globeOverride ?? godEyeTarget} />
-            </Suspense>
-          ) : (
-            <LockedFeature
-              title="The God Eye globe is part of paid access"
-              description="A 3D satellite globe that flies to the places you look up, with terrain, labels and orbit."
-              onSignIn={openSignIn}
+            ) : (
+              <LockedFeature
+                title="The God Eye globe is part of paid access"
+                description="A 3D satellite globe that flies to the places you look up, with terrain, labels and orbit."
+                onSignIn={openSignIn}
+              />
+            ))}
+
+          {activeTab === 'history' && <HistoryView onSelectNumber={handleSelectBatchNumber} />}
+
+          {activeTab === 'investigations' &&
+            (hasPaid ? (
+              <InvestigationCenter />
+            ) : (
+              <LockedFeature
+                title="Investigations and monitoring are part of paid access"
+                description="Track public domain and IP records over time and keep a clear history of what changed, with automatic rechecks."
+                onSignIn={openSignIn}
+              />
+            ))}
+
+          {activeTab === 'public_osint' && (
+            <OpenOsintHubView
+              onOpenTab={setActiveTab}
+              phoneNumber={inputNumber}
+              onUsePhone={(n) => setInputNumber(n)}
             />
-          ))}
+          )}
 
-        {activeTab === 'history' && <HistoryView onSelectNumber={handleSelectBatchNumber} />}
+          {activeTab === 'resource_hub' && <PublicResourceHub />}
 
-        {activeTab === 'investigations' &&
-          (hasPaid ? (
-            <InvestigationCenter />
-          ) : (
-            <LockedFeature
-              title="Investigations and monitoring are part of paid access"
-              description="Track public domain and IP records over time and keep a clear history of what changed, with automatic rechecks."
-              onSignIn={openSignIn}
-            />
-          ))}
+          {activeTab === 'public_apis' && <PublicApisHubView />}
 
-        {activeTab === 'public_osint' && (
-          <OpenOsintHubView
-            onOpenTab={setActiveTab}
-            phoneNumber={inputNumber}
-            onUsePhone={(n) => setInputNumber(n)}
-          />
-        )}
+          {activeTab === 'campaigns' &&
+            (hasPaid ? (
+              <CampaignCenter />
+            ) : (
+              <LockedFeature
+                title="Campaigns and SMS are part of paid access"
+                description="Create expiring short links and send them to your own verified numbers by SMS. Sending messages uses a paid provider."
+                onSignIn={openSignIn}
+              />
+            ))}
 
-        {activeTab === 'resource_hub' && <PublicResourceHub />}
+          {activeTab === 'plan' && !isAdmin && <PlanView />}
 
-        {activeTab === 'public_apis' && <PublicApisHubView />}
-
-        {activeTab === 'campaigns' &&
-          (hasPaid ? (
-            <CampaignCenter />
-          ) : (
-            <LockedFeature
-              title="Campaigns and SMS are part of paid access"
-              description="Create expiring short links and send them to your own verified numbers by SMS. Sending messages uses a paid provider."
-              onSignIn={openSignIn}
-            />
-          ))}
-
-        {activeTab === 'plan' && !isAdmin && <PlanView />}
-
-        {activeTab === 'admin' && isAdmin && <AdminView />}
+          {activeTab === 'admin' && isAdmin && <AdminView />}
+        </Suspense>
       </main>
 
       <footer className="border-t border-slate-800/80 bg-slate-950 py-6 text-xs text-slate-500">

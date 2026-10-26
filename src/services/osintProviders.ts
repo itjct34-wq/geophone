@@ -3,8 +3,12 @@
  */
 
 import { fetchWithTimeout } from '../lib/fetchWithTimeout';
+import { mapPool } from '../lib/mapPool';
+import { yieldToUi } from '../lib/withTimeout';
 
 const OSINT_CLIENT_MS = 20_000;
+/** Cap parallel provider fan-out so Search / SpiderFoot never opens 5+ sockets at once. */
+const ENRICH_CONCURRENCY = 3;
 
 export type OsintProviderId =
   | 'ipapi'
@@ -56,7 +60,14 @@ export async function callOsintProvider(
   }
 }
 
-/** Parallel IP enrichment used by IP map tracker + SpiderFoot. */
+type EnrichJob = () => Promise<OsintProviderResponse>;
+
+async function runEnrichJobs(jobs: EnrichJob[]): Promise<OsintProviderResponse[]> {
+  await yieldToUi();
+  return mapPool(jobs, ENRICH_CONCURRENCY, (job) => job());
+}
+
+/** Bounded IP enrichment used by IP map tracker + SpiderFoot. */
 export async function enrichIp(ip: string): Promise<{
   ipapi: OsintProviderResponse;
   abuseipdb: OsintProviderResponse;
@@ -64,12 +75,12 @@ export async function enrichIp(ip: string): Promise<{
   virustotal: OsintProviderResponse;
   shodan: OsintProviderResponse;
 }> {
-  const [ipapi, abuseipdb, otx, virustotal, shodan] = await Promise.all([
-    callOsintProvider('ipapi', ip),
-    callOsintProvider('abuseipdb', ip),
-    callOsintProvider('otx', ip, { kind: 'ip' }),
-    callOsintProvider('virustotal', ip, { kind: 'ip' }),
-    callOsintProvider('shodan', ip, { mode: 'host' }),
+  const [ipapi, abuseipdb, otx, virustotal, shodan] = await runEnrichJobs([
+    () => callOsintProvider('ipapi', ip),
+    () => callOsintProvider('abuseipdb', ip),
+    () => callOsintProvider('otx', ip, { kind: 'ip' }),
+    () => callOsintProvider('virustotal', ip, { kind: 'ip' }),
+    () => callOsintProvider('shodan', ip, { mode: 'host' }),
   ]);
   return { ipapi, abuseipdb, otx, virustotal, shodan };
 }
@@ -79,9 +90,12 @@ export async function enrichEmail(email: string): Promise<{
   hunter: OsintProviderResponse;
 }> {
   const domain = email.split('@')[1] || '';
-  const [breachdirectory, hunter] = await Promise.all([
-    callOsintProvider('breachdirectory', email),
-    domain ? callOsintProvider('hunter', domain) : Promise.resolve({ provider: 'hunter', configured: false, message: 'No domain' }),
+  const [breachdirectory, hunter] = await runEnrichJobs([
+    () => callOsintProvider('breachdirectory', email),
+    () =>
+      domain
+        ? callOsintProvider('hunter', domain)
+        : Promise.resolve({ provider: 'hunter', configured: false, message: 'No domain' }),
   ]);
   return { breachdirectory, hunter };
 }
@@ -93,12 +107,12 @@ export async function enrichDomain(domain: string): Promise<{
   otx: OsintProviderResponse;
   nominatim: OsintProviderResponse;
 }> {
-  const [hunter, virustotal, apivoid, otx, nominatim] = await Promise.all([
-    callOsintProvider('hunter', domain),
-    callOsintProvider('virustotal', domain, { kind: 'domain' }),
-    callOsintProvider('apivoid', domain, { kind: 'domain' }),
-    callOsintProvider('otx', domain, { kind: 'domain' }),
-    callOsintProvider('nominatim', domain, { kind: 'search' }),
+  const [hunter, virustotal, apivoid, otx, nominatim] = await runEnrichJobs([
+    () => callOsintProvider('hunter', domain),
+    () => callOsintProvider('virustotal', domain, { kind: 'domain' }),
+    () => callOsintProvider('apivoid', domain, { kind: 'domain' }),
+    () => callOsintProvider('otx', domain, { kind: 'domain' }),
+    () => callOsintProvider('nominatim', domain, { kind: 'search' }),
   ]);
   return { hunter, virustotal, apivoid, otx, nominatim };
 }

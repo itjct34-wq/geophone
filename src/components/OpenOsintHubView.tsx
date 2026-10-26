@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import {
   LayoutDashboard,
   Loader2,
@@ -19,6 +19,7 @@ import {
   type SpiderFootScanReport,
   type SpiderFootTargetType,
 } from '../services/spiderfootService';
+import { yieldToUi } from '../lib/withTimeout';
 
 interface OpenOsintHubViewProps {
   onOpenTab: (tab: TabId) => void;
@@ -103,10 +104,13 @@ export const OpenOsintHubView: React.FC<OpenOsintHubViewProps> = ({
   const [busy, setBusy] = useState(false);
   const [report, setReport] = useState<SpiderFootScanReport | null>(null);
   const [error, setError] = useState('');
+  const abortRef = useRef<AbortController | null>(null);
 
   React.useEffect(() => {
     if (phoneNumber) setTarget(phoneNumber);
   }, [phoneNumber]);
+
+  React.useEffect(() => () => abortRef.current?.abort(), []);
 
   const guessed = target.trim() ? detectSpiderFootTargetType(target) : null;
 
@@ -116,18 +120,25 @@ export const OpenOsintHubView: React.FC<OpenOsintHubViewProps> = ({
       setError('Enter a target to scan in-app.');
       return;
     }
+    abortRef.current?.abort();
+    const controller = new AbortController();
+    abortRef.current = controller;
     setBusy(true);
     setError('');
+    await yieldToUi();
     try {
-      const next = await runSpiderFootScan(target.trim());
+      const next = await runSpiderFootScan(target.trim(), undefined, controller.signal);
+      if (controller.signal.aborted) return;
       setReport(next);
       if (next.targetType === 'phone' && next.raw.phoneInfoga?.number.e164) {
         onUsePhone?.(next.raw.phoneInfoga.number.e164);
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Scan failed.');
+      if (!controller.signal.aborted) {
+        setError(err instanceof Error ? err.message : 'Scan failed.');
+      }
     } finally {
-      setBusy(false);
+      if (abortRef.current === controller) setBusy(false);
     }
   };
 

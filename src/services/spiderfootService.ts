@@ -23,6 +23,7 @@ import {
   enrichIp,
   type OsintProviderResponse,
 } from './osintProviders';
+import { yieldToUi } from '../lib/withTimeout';
 
 export type SpiderFootTargetType = 'phone' | 'email' | 'username' | 'ip' | 'domain';
 
@@ -123,14 +124,18 @@ async function fetchDns(domain: string): Promise<{ mx?: string[]; a?: string[]; 
   }
 }
 
-/** Yield to the browser so search UI (spinner / cancel) stays responsive during long scans. */
-function yieldToUi(): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, 0));
+function assertNotAborted(signal?: AbortSignal) {
+  if (signal?.aborted) {
+    const err = new Error('Scan cancelled');
+    err.name = 'AbortError';
+    throw err;
+  }
 }
 
 export async function runSpiderFootScan(
   targetRaw: string,
   forcedType?: SpiderFootTargetType,
+  signal?: AbortSignal,
 ): Promise<SpiderFootScanReport> {
   const target = targetRaw.trim();
   const targetType = forcedType ?? detectTargetType(target);
@@ -144,17 +149,23 @@ export async function runSpiderFootScan(
     events.push(...mod.events);
   };
 
-  await yieldToUi();
+  const checkpoint = async () => {
+    assertNotAborted(signal);
+    await yieldToUi();
+  };
+
+  await checkpoint();
 
   if (targetType === 'phone') {
     const [phoneInfoga, callerCheck] = await Promise.all([
-      runPhoneInfogaStyleScan(target),
+      runPhoneInfogaStyleScan(target, signal),
       (async () => {
         const parsed = parsePhoneNumber(target);
         if (!parsed.e164) return null;
-        return runCallerCheck(parsed.e164);
+        return runCallerCheck(parsed.e164, signal);
       })(),
     ]);
+    await checkpoint();
     raw.phoneInfoga = phoneInfoga;
     if (callerCheck) raw.callerCheck = callerCheck;
 
@@ -223,7 +234,8 @@ export async function runSpiderFootScan(
   }
 
   if (targetType === 'username') {
-    const sherlock = await runSherlockHunt(target);
+    await checkpoint();
+    const sherlock = await runSherlockHunt(target, signal);
     raw.sherlock = sherlock;
     const found = sherlock.results.filter((r) => r.status === 'found');
     push({
@@ -242,8 +254,9 @@ export async function runSpiderFootScan(
   }
 
   if (targetType === 'email') {
+    await checkpoint();
     const [holehe, localPart] = await Promise.all([
-      runHoleheCheck(target),
+      runHoleheCheck(target, signal),
       Promise.resolve(target.split('@')[0] || ''),
     ]);
     raw.holehe = holehe;
@@ -264,7 +277,8 @@ export async function runSpiderFootScan(
 
     // Also hunt username = local-part via Sherlock (SpiderFoot-style correlation).
     if (localPart && /^[a-zA-Z0-9_.-]{1,60}$/.test(localPart)) {
-      const sherlock = await runSherlockHunt(localPart);
+      await checkpoint();
+      const sherlock = await runSherlockHunt(localPart, signal);
       raw.sherlock = sherlock;
       const foundUser = sherlock.results.filter((r) => r.status === 'found');
       push({
@@ -327,6 +341,7 @@ export async function runSpiderFootScan(
   }
 
   if (targetType === 'ip' || targetType === 'domain') {
+    await checkpoint();
     try {
       const ipResult = await lookupIp(target);
       raw.ip = ipResult;
@@ -528,6 +543,8 @@ export async function runSpiderFootScan(
       });
     }
   }
+
+  await checkpoint();
 
   return {
     targetType,

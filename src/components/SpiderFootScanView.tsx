@@ -66,9 +66,10 @@ export const SpiderFootScanView: React.FC<{
     }
     setBusy(true);
     setError('');
+    const controller = new AbortController();
     try {
       const type = forcedType === 'auto' ? undefined : forcedType;
-      const next = await runSpiderFootScan(input.trim(), type);
+      const next = await runSpiderFootScan(input.trim(), type, controller.signal);
       setReport(next);
       if (next.targetType === 'phone' && next.raw.phoneInfoga?.number.e164) {
         onUsePhone?.(next.raw.phoneInfoga.number.e164);
