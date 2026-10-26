@@ -123,6 +123,11 @@ async function fetchDns(domain: string): Promise<{ mx?: string[]; a?: string[]; 
   }
 }
 
+/** Yield to the browser so search UI (spinner / cancel) stays responsive during long scans. */
+function yieldToUi(): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, 0));
+}
+
 export async function runSpiderFootScan(
   targetRaw: string,
   forcedType?: SpiderFootTargetType,
@@ -138,6 +143,8 @@ export async function runSpiderFootScan(
     modules.push(mod);
     events.push(...mod.events);
   };
+
+  await yieldToUi();
 
   if (targetType === 'phone') {
     const [phoneInfoga, callerCheck] = await Promise.all([

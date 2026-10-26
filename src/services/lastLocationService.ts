@@ -1,4 +1,5 @@
 import { supabase } from '../lib/supabase';
+import { generateShortToken } from './shareService';
 
 export interface LastKnownLocation {
   lat: number;
@@ -55,6 +56,7 @@ export function timeAgo(iso: string, now = Date.now()): string {
 export async function savePastedLocation(e164: string, lat: number, lng: number): Promise<void> {
   const now = new Date().toISOString();
   const { error } = await supabase.from('share_sessions').insert({
+    token: generateShortToken(),
     label: PASTED_LABEL,
     requested_by: '',
     phone_e164: e164,

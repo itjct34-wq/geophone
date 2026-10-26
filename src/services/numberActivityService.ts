@@ -42,12 +42,15 @@ export async function getSharesForNumber(e164: string): Promise<NumberShare[]> {
     .order('created_at', { ascending: false })
     .limit(5);
   if (error) throw new Error(error.message);
-  return (data ?? []).map((s: ShareSession & { shared_info: SharedInfo | null }) => ({
-    id: s.id,
-    label: s.label,
-    createdAt: s.created_at,
-    state: shareState(s),
-    lastAt: s.last_at,
-    info: s.shared_info,
-  }));
+  return (data ?? []).map((row) => {
+    const s = row as ShareSession & { shared_info: SharedInfo | null };
+    return {
+      id: s.id,
+      label: s.label,
+      createdAt: s.created_at,
+      state: shareState(s),
+      lastAt: s.last_at,
+      info: s.shared_info,
+    };
+  });
 }

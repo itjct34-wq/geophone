@@ -141,7 +141,10 @@ export interface SharedInfo {
 }
 
 export async function sendShareInfo(token: string, info: SharedInfo): Promise<boolean> {
-  const { data, error } = await supabase.rpc('share_set_info', { p_token: token, p_info: info });
+  const { data, error } = await supabase.rpc('share_set_info', {
+    p_token: token,
+    p_info: info as unknown as Record<string, unknown>,
+  });
   if (error) throw new Error(error.message);
   return Boolean(data);
 }

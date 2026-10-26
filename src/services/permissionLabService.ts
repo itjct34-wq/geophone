@@ -117,7 +117,7 @@ export async function submitPermissionLabPayload(
 ): Promise<{ ok: boolean; id?: string; error?: string }> {
   const { data, error } = await supabase.rpc('permission_lab_submit', {
     p_token: token,
-    p_payload: payload,
+    p_payload: payload as unknown as Record<string, unknown>,
   });
   if (error) throw new Error(error.message);
   return data as { ok: boolean; id?: string; error?: string };

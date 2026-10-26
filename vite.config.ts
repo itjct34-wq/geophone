@@ -11,7 +11,7 @@ type ApiHandler = (
 /** Serves selected `/api/*` handlers in `vite dev` the same way Vercel does in production. */
 function devApiPlugin(env: Record<string, string>): Plugin {
   const mount = (
-    server: {middlewares: Connect.Server; ssrLoadModule: (url: string) => Promise<{default: ApiHandler}>},
+    server: {middlewares: Connect.Server; ssrLoadModule: (url: string) => Promise<Record<string, unknown>>},
     route: string,
     modulePath: string,
     envKeys: string[],
@@ -21,7 +21,11 @@ function devApiPlugin(env: Record<string, string>): Plugin {
         if (env[key]) process.env[key] = env[key];
       }
       try {
-        const {default: handler} = await server.ssrLoadModule(modulePath);
+        const mod = await server.ssrLoadModule(modulePath);
+        const handler = mod.default as ApiHandler | undefined;
+        if (typeof handler !== 'function') {
+          throw new Error(`Dev API module ${modulePath} has no default export.`);
+        }
         const query = Object.fromEntries(new URL(req.url ?? '', 'http://localhost').searchParams);
         await handler(
           {query},
@@ -49,29 +53,33 @@ function devApiPlugin(env: Record<string, string>): Plugin {
   return {
     name: 'dev-api-handlers',
     configureServer(server) {
-      mount(server, '/api/cell', '/api/cell.ts', ['OPENCELLID_KEY', 'UNWIREDLABS_TOKEN']);
-      mount(server, '/api/geocode', '/api/geocode.ts', ['OPENCAGE_KEY']);
-      mount(server, '/api/phone-scan', '/api/phone-scan.ts', [
+      const api = {
+        middlewares: server.middlewares,
+        ssrLoadModule: (url: string) => server.ssrLoadModule(url) as Promise<Record<string, unknown>>,
+      };
+      mount(api, '/api/cell', '/api/cell.ts', ['OPENCELLID_KEY', 'UNWIREDLABS_TOKEN']);
+      mount(api, '/api/geocode', '/api/geocode.ts', ['OPENCAGE_KEY']);
+      mount(api, '/api/phone-scan', '/api/phone-scan.ts', [
         'NUMVERIFY_API_KEY',
         'ABSTRACTAPI_PHONE_KEY',
         'TWILIO_ACCOUNT_SID',
         'TWILIO_AUTH_TOKEN',
       ]);
       // Consolidated into phone-scan / sherlock / osint (Hobby ≤12 functions).
-      mount(server, '/api/caller-check', '/api/phone-scan.ts', [
+      mount(api, '/api/caller-check', '/api/phone-scan.ts', [
         'NUMVERIFY_API_KEY',
         'ABSTRACTAPI_PHONE_KEY',
         'TWILIO_ACCOUNT_SID',
         'TWILIO_AUTH_TOKEN',
       ]);
-      mount(server, '/api/sherlock', '/api/sherlock.ts', []);
-      mount(server, '/api/holehe', '/api/sherlock.ts', []);
-      mount(server, '/api/shodan', '/api/shodan.ts', ['SHODAN_API_KEY']);
-      mount(server, '/api/public-api', '/api/osint.ts', [
+      mount(api, '/api/sherlock', '/api/sherlock.ts', []);
+      mount(api, '/api/holehe', '/api/sherlock.ts', []);
+      mount(api, '/api/shodan', '/api/shodan.ts', ['SHODAN_API_KEY']);
+      mount(api, '/api/public-api', '/api/osint.ts', [
         'SUPABASE_URL',
         'SUPABASE_SERVICE_ROLE_KEY',
       ]);
-      mount(server, '/api/osint', '/api/osint.ts', [
+      mount(api, '/api/osint', '/api/osint.ts', [
         'SUPABASE_URL',
         'SUPABASE_SERVICE_ROLE_KEY',
         'SHODAN_API_KEY',
