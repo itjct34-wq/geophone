@@ -182,7 +182,7 @@ export default function App() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col selection:bg-cyan-500 selection:text-slate-950">
+    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col selection:bg-slate-600 selection:text-slate-50">
       <Navbar activeTab={activeTab} setActiveTab={setActiveTab} />
 
       <div className="border-b border-slate-800/80 bg-slate-900/40">

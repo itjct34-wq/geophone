@@ -33,7 +33,7 @@ export const LoginPage: React.FC<{ onBack?: () => void }> = ({ onBack }) => {
     'w-full bg-slate-950 border border-slate-800 rounded-lg pl-10 pr-3 py-2.5 text-sm text-slate-100 placeholder:text-slate-600 focus:outline-none focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500';
 
   return (
-    <div dir={dir} className="min-h-screen bg-slate-950 text-slate-100 flex items-center justify-center px-4 selection:bg-cyan-500 selection:text-slate-950">
+    <div dir={dir} className="min-h-screen bg-slate-950 text-slate-100 flex items-center justify-center px-4 selection:bg-slate-600 selection:text-slate-50">
       <div className="w-full max-w-sm">
         <div className="mb-4 flex items-center justify-between gap-2">
           {onBack ? (

@@ -88,7 +88,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onSignIn, onGetStarted
   );
 
   return (
-    <div dir={dir} className="flex min-h-screen flex-col bg-slate-950 text-slate-100 selection:bg-cyan-500 selection:text-slate-950">
+    <div dir={dir} className="flex min-h-screen flex-col bg-slate-950 text-slate-100 selection:bg-slate-600 selection:text-slate-50">
       {/* Header */}
       <header className="sticky top-0 z-50 border-b border-slate-800 bg-slate-950/80 backdrop-blur-md">
         <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3 sm:px-6">

@@ -24,9 +24,22 @@
     scrollbar-width: thin;
   }
 
+  /* Neutral selection — cyan here made Ctrl+F / select look like every nav item was "active". */
   ::selection {
-    background: rgba(34, 211, 238, 0.35);
+    background: rgba(100, 116, 139, 0.55);
     color: #f8fafc;
+  }
+
+  /* Find-in-page marks stay distinct from the active cyan nav style */
+  ::highlight(find),
+  ::highlight(find-current) {
+    background-color: rgba(251, 191, 36, 0.45);
+    color: #f8fafc;
+  }
+
+  mark {
+    background-color: rgba(251, 191, 36, 0.25);
+    color: inherit;
   }
 
   /* Numbers in data lines align in columns */

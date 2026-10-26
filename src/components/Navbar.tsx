@@ -1,5 +1,5 @@
 import React, { startTransition, useEffect, useId, useRef, useState } from 'react';
-import { Radio, Lock, LogOut, LogIn, ChevronDown } from 'lucide-react';
+import { Radio, Lock, LogOut, LogIn, ChevronDown, Search } from 'lucide-react';
 import { useAuth } from '../auth/AuthContext';
 import { adminListCustomers } from '../services/accessService';
 import { useI18n } from '../i18n';
@@ -47,17 +47,48 @@ interface TabDef {
   account?: boolean;
 }
 
+/** Highlight query matches without looking like the active/selected row (cyan). */
+function markLabel(label: string, query: string): React.ReactNode {
+  const q = query.trim();
+  if (!q) return label;
+  const lower = label.toLowerCase();
+  const needle = q.toLowerCase();
+  const idx = lower.indexOf(needle);
+  if (idx < 0) return label;
+  return (
+    <>
+      {label.slice(0, idx)}
+      <mark className="rounded-sm bg-amber-400/25 text-inherit px-0.5">{label.slice(idx, idx + q.length)}</mark>
+      {label.slice(idx + q.length)}
+    </>
+  );
+}
+
 export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab }) => {
   const { user, isAdmin, hasPaid, signOut } = useAuth();
   const { t } = useI18n();
   const [moreOpen, setMoreOpen] = useState(false);
+  const [moreQuery, setMoreQuery] = useState('');
   const menuRef = useRef<HTMLDivElement>(null);
+  const moreSearchRef = useRef<HTMLInputElement>(null);
   const menuId = useId();
+  const moreSearchId = useId();
 
   // Always close the mega-menu when the active tab changes (belt-and-suspenders with onSelect).
   useEffect(() => {
     setMoreOpen(false);
+    setMoreQuery('');
   }, [activeTab]);
+
+  // Focus the in-menu filter when More tools opens; clear query when it closes.
+  useEffect(() => {
+    if (!moreOpen) {
+      setMoreQuery('');
+      return;
+    }
+    const id = window.setTimeout(() => moreSearchRef.current?.focus(), 0);
+    return () => window.clearTimeout(id);
+  }, [moreOpen]);
 
   // Escape closes the menu; click-outside is handled by the full-screen backdrop button.
   useEffect(() => {
@@ -130,15 +161,21 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab }) => {
   const allTabs = [...primaryTabs, ...moreTabs];
   const moreActive = moreTabs.some((tab) => tab.id === activeTab);
 
+  const moreFilter = moreQuery.trim().toLowerCase();
+  const filteredMoreTabs = moreFilter
+    ? moreTabs.filter((tab) => tab.label.toLowerCase().includes(moreFilter))
+    : moreTabs;
+
   const selectTab = (id: TabId) => {
     // Close the overlay first so it never sticks over the app while a heavy view mounts.
     setMoreOpen(false);
+    setMoreQuery('');
     startTransition(() => setActiveTab(id));
   };
 
-  const content = (tab: TabDef) => (
+  const content = (tab: TabDef, labelOverride?: React.ReactNode) => (
     <>
-      {tab.label}
+      {labelOverride ?? tab.label}
       {tab.paid && !hasPaid && (
         <Lock className="w-3 h-3 mx-1.5 inline-block align-[-1px] text-slate-400" aria-label="Paid feature" />
       )}
@@ -211,21 +248,62 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab }) => {
                 <div
                   id={menuId}
                   role="menu"
-                  className="absolute right-0 top-full z-50 mt-2 min-w-[14rem] max-h-[min(70vh,32rem)] overflow-y-auto overscroll-contain rounded-xl border border-slate-800 bg-slate-950 py-1 shadow-xl"
+                  className="absolute right-0 top-full z-50 mt-2 min-w-[16rem] max-h-[min(70vh,32rem)] overflow-y-auto overscroll-contain rounded-xl border border-slate-800 bg-slate-950 py-1 shadow-xl"
                 >
-                  {moreTabs.map((tab) => (
-                    <button
-                      key={tab.id}
-                      type="button"
-                      role="menuitem"
-                      onClick={() => selectTab(tab.id)}
-                      className={`w-full text-left px-3 py-2 text-sm transition-colors ${
-                        activeTab === tab.id ? 'bg-slate-900 text-cyan-300' : 'text-slate-300 hover:bg-slate-900 hover:text-slate-100'
-                      }`}
-                    >
-                      {content(tab)}
-                    </button>
-                  ))}
+                  <div className="sticky top-0 z-10 border-b border-slate-800 bg-slate-950 px-2 pb-2 pt-2">
+                    <label htmlFor={moreSearchId} className="sr-only">
+                      Filter tools
+                    </label>
+                    <div className="relative">
+                      <Search
+                        className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-500"
+                        aria-hidden="true"
+                      />
+                      <input
+                        ref={moreSearchRef}
+                        id={moreSearchId}
+                        type="search"
+                        value={moreQuery}
+                        onChange={(e) => setMoreQuery(e.target.value)}
+                        onKeyDown={(e) => {
+                          // Keep typing from bubbling to document shortcuts; Escape still closes via window listener.
+                          if (e.key === 'Escape') return;
+                          e.stopPropagation();
+                          if (e.key === 'Enter' && filteredMoreTabs.length === 1) {
+                            e.preventDefault();
+                            selectTab(filteredMoreTabs[0].id);
+                          }
+                        }}
+                        placeholder="Filter tools…"
+                        autoComplete="off"
+                        className="w-full rounded-lg border border-slate-800 bg-slate-900 py-2 pl-8 pr-2 text-sm text-slate-100 placeholder:text-slate-500 outline-none focus:border-slate-600"
+                      />
+                    </div>
+                  </div>
+                  {filteredMoreTabs.length === 0 ? (
+                    <p className="px-3 py-3 text-sm text-slate-500">No tools match.</p>
+                  ) : (
+                    filteredMoreTabs.map((tab) => {
+                      // Only the current route is "active" cyan — search matches stay neutral (+ amber mark).
+                      const isCurrent = activeTab === tab.id;
+                      return (
+                        <button
+                          key={tab.id}
+                          type="button"
+                          role="menuitem"
+                          aria-current={isCurrent ? 'page' : undefined}
+                          onClick={() => selectTab(tab.id)}
+                          className={`w-full text-left px-3 py-2 text-sm transition-colors ${
+                            isCurrent
+                              ? 'bg-slate-900 text-cyan-300 font-semibold'
+                              : 'text-slate-300 hover:bg-slate-900 hover:text-slate-100'
+                          }`}
+                        >
+                          {content(tab, markLabel(tab.label, moreQuery))}
+                        </button>
+                      );
+                    })
+                  )}
                 </div>
               </>
             )}
